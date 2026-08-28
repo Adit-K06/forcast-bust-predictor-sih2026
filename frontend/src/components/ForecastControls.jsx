@@ -1,0 +1,63 @@
+function ForecastControls({
+  forecastDate,
+  onForecastDateChange,
+  leadDay,
+  onLeadDayChange,
+  region,
+  onRegionChange,
+}) {
+  return (
+    <section className="controls-bar" aria-label="Forecast controls">
+      <div className="control-group">
+        <label htmlFor="forecast-date">Forecast Date</label>
+        <input
+          id="forecast-date"
+          type="date"
+          value={forecastDate}
+          onChange={(e) => onForecastDateChange(e.target.value)}
+        />
+      </div>
+
+      <div className="control-group lead-day-group">
+        <label htmlFor="lead-day">
+          Lead Day <span className="lead-day-value">Day {leadDay}</span>
+        </label>
+        <div className="slider-track">
+          <span className="slider-endpoint">Day 1</span>
+          <input
+            id="lead-day"
+            type="range"
+            min="1"
+            max="10"
+            step="1"
+            value={leadDay}
+            onChange={(e) => onLeadDayChange(Number(e.target.value))}
+            aria-valuemin={1}
+            aria-valuemax={10}
+            aria-valuenow={leadDay}
+            aria-label={`Lead day, currently Day ${leadDay}`}
+          />
+          <span className="slider-endpoint">Day 10</span>
+        </div>
+      </div>
+
+      <div className="control-group">
+        <label htmlFor="region-select">Region</label>
+        <select
+          id="region-select"
+          value={region}
+          onChange={(e) => onRegionChange(e.target.value)}
+        >
+          <option value="all-india">All India</option>
+          <option value="maharashtra">Maharashtra</option>
+          <option value="karnataka">Karnataka</option>
+          <option value="tamil-nadu">Tamil Nadu</option>
+          <option value="uttar-pradesh">Uttar Pradesh</option>
+          <option value="rajasthan">Rajasthan</option>
+        </select>
+      </div>
+    </section>
+  )
+}
+
+export default ForecastControls

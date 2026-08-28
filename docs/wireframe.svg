@@ -1,0 +1,24 @@
+<svg viewBox="0 0 1200 750" xmlns="http://www.w3.org/2000/svg" font-family="monospace">
+  <rect width="1200" height="750" fill="#10141a"/>
+
+  <rect x="0" y="0" width="1200" height="60" fill="#171c24" stroke="#38414f"/>
+  <text x="24" y="35" fill="#e8ebef" font-size="16">FORECAST BUST — Forecast Reliability Intelligence</text>
+  <text x="1000" y="35" fill="#8d97a5" font-size="12">PROTOTYPE ENVIRONMENT</text>
+
+  <rect x="0" y="60" width="1200" height="70" fill="#10141a" stroke="#262d38"/>
+  <text x="24" y="100" fill="#8d97a5" font-size="12">Forecast Date</text>
+  <text x="220" y="100" fill="#8d97a5" font-size="12">Lead Day  [1 ────●──── 10]</text>
+  <text x="600" y="100" fill="#8d97a5" font-size="12">Region</text>
+
+  <rect x="0" y="130" width="850" height="540" fill="#0d1116" stroke="#262d38"/>
+  <text x="400" y="400" fill="#5c6572" font-size="14" text-anchor="middle">LARGE MAP (India, pan/zoom)</text>
+  <text x="24" y="655" fill="#5c6572" font-size="11">"Regional risk layer will be connected next."</text>
+
+  <rect x="850" y="130" width="350" height="540" fill="#171c24" stroke="#262d38"/>
+  <text x="875" y="165" fill="#e8ebef" font-size="13">REGION INTELLIGENCE</text>
+  <text x="875" y="220" fill="#8d97a5" font-size="12">Select a region on the map</text>
+  <text x="875" y="240" fill="#8d97a5" font-size="12">to inspect forecast reliability.</text>
+
+  <rect x="0" y="670" width="1200" height="80" fill="#171c24" stroke="#262d38"/>
+  <text x="24" y="715" fill="#8d97a5" font-size="12">BUST RISK   ● Low  ● Medium  ● High   (framework only)</text>
+</svg>
