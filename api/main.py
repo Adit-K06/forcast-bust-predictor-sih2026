@@ -1,19 +1,3 @@
-"""
-FastAPI Backend — AtmoTrust Inference API
-
-Endpoints:
-  GET  /health                       — health check
-  GET  /regions                      — list all IMD subdivisions
-  POST /forecast-confidence          — main inference endpoint
-  GET  /forecast-confidence/{region} — confidence for all lead days in a region
-  GET  /confidence-map/{date}        — all regions for one date (map view)
-  GET  /bust-events                  — known historical bust events
-  GET  /model-info                   — model metadata and evaluation metrics
-
-Run locally:
-  uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-"""
-
 import os
 import json
 import numpy as np
@@ -36,7 +20,6 @@ from data_pipeline.gfs_downloader import KNOWN_BUST_EVENTS
 from features.feature_engineer import FeatureEngineer
 from explainability.explainer import ExplainabilityEngine, explain_single_prediction, _confidence_label, _confidence_color
 
-# ─────────────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="AtmoTrust — Forecast Bust Detection API",
     description=(
@@ -51,12 +34,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten for production
+    allow_origins=["*"],  
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Globals — loaded once at startup, shared across all requests
 MODEL = None
 FEATURE_DF = None
 EVAL_RESULTS = None
@@ -89,8 +71,6 @@ async def load_model():
     except Exception as e:
         logger.error(f"Startup error: {e}")
 
-
-# ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class ConfidenceRequest(BaseModel):
     region: str = Field(..., description="IMD subdivision key e.g. 'KERALA'")
@@ -142,8 +122,6 @@ class ModelInfo(BaseModel):
     training_period: Optional[str]
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
-
 @app.get("/health", tags=["System"])
 def health_check():
     return {
@@ -176,11 +154,6 @@ def list_regions():
 
 @app.post("/forecast-confidence", response_model=ConfidenceResponse, tags=["Inference"])
 def get_forecast_confidence(req: ConfidenceRequest):
-    """
-    Main inference endpoint.
-    Returns bust probability, confidence score, and SHAP-based explanation
-    for a specific (region, date, lead_day) combination.
-    """
     if req.region not in IMD_SUBDIVISIONS:
         raise HTTPException(404, f"Region '{req.region}' not found. See GET /regions.")
 
@@ -206,10 +179,6 @@ def get_region_all_lead_days(
     region: str,
     date: str = Query(..., description="Init date YYYY-MM-DD"),
 ):
-    """
-    Returns confidence scores for all lead days (1–10) for one region.
-    Used for the confidence-convergence time-series chart in the dashboard.
-    """
     if region not in IMD_SUBDIVISIONS:
         raise HTTPException(404, f"Region '{region}' not found.")
 
@@ -245,10 +214,6 @@ def get_confidence_map(
     lead_day: int = Query(3, ge=1, le=10, description="Lead day for the map"),
     regions: Optional[str] = Query(None, description="Comma-separated region keys (default: all pilot regions)"),
 ):
-    """
-    Returns confidence scores for all regions on one date at one lead day.
-    Powers the choropleth map in the dashboard.
-    """
     try:
         init_date = pd.Timestamp(date)
     except Exception:
@@ -285,7 +250,6 @@ def get_confidence_map(
 
 @app.get("/bust-events", tags=["Data"])
 def get_known_bust_events():
-    """Returns the curated list of real historical bust events used for demo scenarios."""
     return {"bust_events": KNOWN_BUST_EVENTS}
 
 
@@ -304,14 +268,7 @@ def get_model_info():
         training_period="Jun 2021 – Sep 2022 (train) | Oct 2022 – May 2023 (val) | Jun–Sep 2023 (test)",
     )
 
-
-# ── Prediction helpers ────────────────────────────────────────────────────────
-
 def _get_prediction(region: str, init_date: pd.Timestamp, lead_day: int) -> dict:
-    """
-    Routes to real inference if the model + feature store are available,
-    otherwise falls back to deterministic mock output (demo/dev mode).
-    """
     if MODEL is not None and FEATURE_DF is not None:
         try:
             return _real_prediction(region, init_date, lead_day)
@@ -322,7 +279,6 @@ def _get_prediction(region: str, init_date: pd.Timestamp, lead_day: int) -> dict
 
 
 def _real_prediction(region: str, init_date: pd.Timestamp, lead_day: int) -> dict:
-    """Look up feature row from the store and run inference + SHAP explanation."""
     row = FEATURE_DF[
         (FEATURE_DF["region"] == region) &
         (FEATURE_DF["init_date"].dt.date == init_date.date()) &
@@ -337,11 +293,6 @@ def _real_prediction(region: str, init_date: pd.Timestamp, lead_day: int) -> dic
 
 
 def _mock_prediction(region: str, init_date: pd.Timestamp, lead_day: int) -> dict:
-    """
-    Deterministic mock for dev/demo when model isn't trained yet.
-    Seeds from (region, date, lead_day) so repeated calls return the same value.
-    Known bust events get elevated bust probability.
-    """
     seed = hash(f"{region}{init_date.date()}{lead_day}") % 10000
     rng = np.random.RandomState(seed)
 
@@ -376,7 +327,6 @@ def _mock_prediction(region: str, init_date: pd.Timestamp, lead_day: int) -> dic
 
 
 def _mock_phrases(bust_prob: float, lead_day: int, rng: np.random.RandomState) -> list[str]:
-    """Sample explanation phrases for demo mode."""
     all_phrases = [
         f"the long lead time of this forecast (Day {lead_day})",
         "elevated low-level wind speeds suggesting an active monsoon surge",

@@ -1,7 +1,3 @@
-# Builds the feature matrix fed to the bust-prediction model.
-# Input: error_df from error_computer.py
-# Output: feature DataFrame ready for XGBoost/LightGBM training
-
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -35,16 +31,12 @@ class FeatureEngineer:
 
 
     def build_features(self, error_df: pd.DataFrame) -> pd.DataFrame:
-        """Run all feature steps in order and return the enriched DataFrame."""
         logger.info(f"Building features for {len(error_df):,} records...")
         df = error_df.copy()
         df["init_date"] = pd.to_datetime(df["init_date"])
         df = df.sort_values(["region", "init_date", "lead_day"])
-
-        # Temporal features first — month column is needed by later steps
         df = self._add_temporal_features(df)
         df = self._add_region_features(df)
-        # hist_bust_rate must be computed before train/test split to avoid leakage
         df = self._add_historical_bust_rate(df)
         df = self._add_rolling_error_features(df)
         df = self._add_forecast_features(df)
@@ -65,7 +57,6 @@ class FeatureEngineer:
     def get_feature_matrix(
         self, df: pd.DataFrame, fill_missing: bool = True
     ) -> tuple[pd.DataFrame, pd.Series | None]:
-        """Returns (X, y). y is None during inference when is_bust column isn't present."""
         feature_cols = self._get_feature_columns(df)
         X = df[feature_cols].copy()
 
@@ -81,11 +72,8 @@ class FeatureEngineer:
 
 
     def _add_temporal_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        # month kept as int so _add_anomaly_features can groupby on it
         doy = df["init_date"].dt.dayofyear
         month = df["init_date"].dt.month
-
-        # month is kept as a plain integer column for use in _add_anomaly_features groupby
         df["month"] = month
         df["month_sin"] = np.sin(2 * np.pi * month / 12)
         df["month_cos"] = np.cos(2 * np.pi * month / 12)
@@ -101,7 +89,6 @@ class FeatureEngineer:
         return df
 
     def _add_historical_bust_rate(self, df: pd.DataFrame) -> pd.DataFrame:
-        # compute on training data only — calling this after splitting would leak labels
         if "is_bust" not in df.columns:
             df["hist_bust_rate"] = np.nan
             df["hist_bust_rate_overall"] = np.nan
@@ -125,7 +112,6 @@ class FeatureEngineer:
         return df
 
     def _add_rolling_error_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        # 7-day rolling error catches recent model drift; trend catches worsening patterns
         if "abs_error_mm" not in df.columns:
             df["rolling_error_7d"] = np.nan
             df["rolling_error_14d"] = np.nan
@@ -148,7 +134,6 @@ class FeatureEngineer:
         return df
 
     def _add_forecast_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        # log transform handles the heavy right skew in precipitation distributions
         if "precip_forecast_mm" in df.columns:
             df["log_precip_forecast"] = np.log1p(df["precip_forecast_mm"])
             bins = [0, 2.5, 7.5, 35.5, 64.5, np.inf]
@@ -158,7 +143,6 @@ class FeatureEngineer:
         return df
 
     def _add_atmospheric_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        # reads the combined NetCDF written by GFSDownloader; fills NaN if file is missing
         atmos_rows = []
 
         groups = df.groupby(["region", "init_date"])
@@ -224,7 +208,6 @@ class FeatureEngineer:
         return df
 
     def _add_anomaly_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        # z-score each variable against its (region, month) climatological distribution
         for var in ["pwat_value", "wind_speed_850", "pressure_gradient"]:
             if var not in df.columns:
                 continue
@@ -235,7 +218,6 @@ class FeatureEngineer:
         return df
 
     def _add_analogue_bust_rate(self, df: pd.DataFrame) -> pd.DataFrame:
-        # KNN on synoptic features: "how often did similar past patterns bust?"
         analogue_features = ["wind_speed_850", "pressure_gradient", "pwat_value",
                               "month_sin", "month_cos"]
         available = [f for f in analogue_features if f in df.columns]
@@ -259,17 +241,16 @@ class FeatureEngineer:
         X_scaled = scaler.fit_transform(X_sub)
 
         k = min(10, mask.sum() - 1)
-        knn = NearestNeighbors(n_neighbors=k + 1, metric="euclidean")  # +1 to exclude self
+        knn = NearestNeighbors(n_neighbors=k + 1, metric="euclidean")
         knn.fit(X_scaled)
 
-        # Map from mask-filtered position back to original df index
         masked_positions = np.where(mask)[0]
         analogue_rates = np.full(len(df), np.nan)
 
         for pos_in_filtered, orig_idx in enumerate(masked_positions):
             scaled_row = X_scaled[pos_in_filtered].reshape(1, -1)
             _, indices = knn.kneighbors(scaled_row)
-            neighbor_indices = indices[0][1:]  # skip the point itself
+            neighbor_indices = indices[0][1:]
             analogue_rates[orig_idx] = y_sub[neighbor_indices].mean()
 
         df["analogue_bust_rate"] = analogue_rates
@@ -278,7 +259,7 @@ class FeatureEngineer:
     def _add_lead_day_features(self, df: pd.DataFrame) -> pd.DataFrame:
         df["lead_day_sq"] = df["lead_day"] ** 2
         df["lead_day_log"] = np.log(df["lead_day"])
-        df["lead_day_norm"] = (df["lead_day"] - 1) / 9   # normalised to [0, 1]
+        df["lead_day_norm"] = (df["lead_day"] - 1) / 9
         return df
 
 
@@ -321,12 +302,10 @@ class FeatureEngineer:
 
     @staticmethod
     def _compute_wind_shear(ds: xr.Dataset, lat_dim: str, lon_dim: str) -> float:
-        # simplified: real shear needs two pressure levels; using 850 hPa speed for now
         return FeatureEngineer._compute_wind_speed(ds, lat_dim, lon_dim)
 
     @staticmethod
     def _detect_depression_proxy(ds: xr.Dataset, lat_dim: str, lon_dim: str) -> bool:
-        # real depressions sit at 996-1004 hPa; anything below 1000 hPa triggers this flag
         for name in ["prmsl", "PRMSL", "msl"]:
             if name in ds:
                 mslp = ds[name]
@@ -340,7 +319,6 @@ class FeatureEngineer:
 
     @staticmethod
     def _detect_wd_proxy(ds: xr.Dataset, lat_dim: str, lon_dim: str) -> bool:
-        # WDs appear as Z500 troughs at 25-35°N, 60-75°E; climatological mean ~5700-5900 gpm
         for name in ["gh500", "z500", "HGT", "z"]:
             if name in ds:
                 z = ds[name]

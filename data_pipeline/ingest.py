@@ -16,14 +16,14 @@ def process_and_align():
       - latitude, longitude, region, date, lead_day
       - forecast_value (GFS precipitation), observed_value (ERA5 precipitation)
     """
-    os.makedirs('data-pipeline/output', exist_ok=True)
+    os.makedirs('data_pipeline/output', exist_ok=True)
     print("=" * 60)
     print("DAY 2: Aligning forecast (GFS) with observations (ERA5)")
     print("=" * 60)
 
 
     print("\n1. Loading ERA5 reanalysis (14-day observational ground truth)...")
-    era5_path = 'data-pipeline/output/era5_pilot_20230701_20230714.grib'
+    era5_path = 'data_pipeline/output/era5_pilot_20230701_20230714.grib'
     if not os.path.exists(era5_path):
         print(f"   ERROR: {era5_path} not found. Run download_pilot.py first.")
         return
@@ -37,7 +37,7 @@ def process_and_align():
 
 
     print("\n2. Loading GFS forecasts (regridding to ERA5 resolution)...")
-    gfs_files = sorted(glob.glob('data-pipeline/output/gfs_pilot_*.grib'))
+    gfs_files = sorted(glob.glob('data_pipeline/output/gfs_pilot_*.grib'))
     if not gfs_files:
         print("   ERROR: No GFS files found. Run download_pilot.py first.")
         return
@@ -116,7 +116,7 @@ def process_and_align():
     final_df = final_df[['latitude', 'longitude', 'region', 'date', 'lead_day', 'forecast_value', 'observed_value']]
 
 
-    output_path = 'data-pipeline/output/aligned_pilot.parquet'
+    output_path = 'data_pipeline/output/aligned_pilot.parquet'
     final_df.to_parquet(output_path, index=False)
 
     print("\n" + "=" * 60)

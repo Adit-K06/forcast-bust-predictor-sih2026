@@ -1,23 +1,9 @@
-"""
-Explainability Layer — converts SHAP values into human-readable meteorological reasoning.
-
-Architecture:
-  1. Compute SHAP values for each prediction
-  2. Rank features by |SHAP value|
-  3. Map top-3 features to templated English phrases
-  4. Assemble into a coherent sentence + advisory text
-"""
-
 import numpy as np
 import pandas as pd
 import shap
 from loguru import logger
 from typing import Literal
 
-
-# Feature-to-phrase mapping table.
-# Each key is a feature name prefix; values define how to interpret that feature.
-# direction: "high_bad" = high feature value → higher bust risk, "low_bad" = low value → higher risk
 FEATURE_TEMPLATES = {
     "run_jump_mm": {
         "direction": "high_bad",
@@ -138,7 +124,6 @@ def _confidence_label(confidence: float) -> Literal["HIGH", "MODERATE", "LOW", "
 
 
 def _confidence_color(confidence: float) -> str:
-    """Returns hex color for UI display — green → amber → orange → red."""
     if confidence >= 0.80:
         return "#2ecc71"
     elif confidence >= 0.60:
@@ -150,20 +135,6 @@ def _confidence_color(confidence: float) -> str:
 
 
 class ExplainabilityEngine:
-    """
-    Converts ML model output + SHAP values into human-readable explanations.
-
-    Usage:
-        engine = ExplainabilityEngine()
-        result = engine.explain(
-            bust_probability=0.72,
-            shap_values=shap_array,
-            feature_values=X_row,
-            feature_names=model.feature_names,
-        )
-        print(result["summary"])   # plain-English sentence
-        print(result["confidence"])  # 0.28
-    """
 
     def explain(
         self,
@@ -173,22 +144,12 @@ class ExplainabilityEngine:
         feature_names: list[str],
         n_top_features: int = 3,
     ) -> dict:
-        """
-        Generate a complete explanation dict for one prediction.
-
-        Returns keys: bust_probability, confidence, confidence_label, confidence_color,
-                       top_factors, summary, detail, advisory
-        """
         confidence = 1.0 - bust_probability
-
-        # Rank features by absolute SHAP impact
         shap_abs = pd.Series(np.abs(shap_values), index=feature_names).sort_values(ascending=False)
         shap_signed = pd.Series(shap_values, index=feature_names)
-
         top_factors = []
         phrases = []
 
-        # Iterate through top candidates; stop once we have n_top_features with valid phrases
         for feat in shap_abs.index[:n_top_features * 2]:
             if len(top_factors) >= n_top_features:
                 break
@@ -231,7 +192,6 @@ class ExplainabilityEngine:
         feature_df: pd.DataFrame,
         n_top_features: int = 3,
     ) -> list[dict]:
-        """Explain a batch of predictions — e.g. all regions for one date."""
         return [
             self.explain(
                 bust_probability=float(bust_probabilities[i]),
@@ -243,10 +203,7 @@ class ExplainabilityEngine:
             for i in range(len(bust_probabilities))
         ]
 
-    # ── Private helpers ──────────────────────────────────────────────────────
-
     def _feature_to_phrase(self, feature_name: str, shap_value: float, feature_value: float) -> str | None:
-        """Map one (feature, SHAP value) pair to an English phrase. Returns None if no template matches."""
         template = None
         for key, tmpl in FEATURE_TEMPLATES.items():
             if feature_name.startswith(key) or feature_name == key:
@@ -262,7 +219,6 @@ class ExplainabilityEngine:
             (direction == "low_bad" and shap_value < 0)
         )
 
-        # Skip features that are barely contributing
         if not is_increasing_risk and abs(shap_value) < 0.05:
             return None
 
@@ -276,7 +232,6 @@ class ExplainabilityEngine:
         return phrase
 
     def _assemble_summary(self, confidence: float, phrases: list[str], bust_prob: float) -> str:
-        """One-sentence summary: confidence level + top reasons."""
         label = _confidence_label(confidence)
         pct = int(round(confidence * 100))
 
@@ -293,7 +248,6 @@ class ExplainabilityEngine:
         return f"{label} confidence ({pct}%): driven by {reason_str}."
 
     def _assemble_detail(self, confidence: float, top_factors: list[dict]) -> str:
-        """Longer meteorological context for the drill-down panel."""
         if not top_factors:
             return "Insufficient feature data for detailed explanation."
 
@@ -305,7 +259,6 @@ class ExplainabilityEngine:
         return "\n".join(lines)
 
     def _generate_advisory(self, confidence: float, bust_prob: float) -> str:
-        """Actionable advisory text for the forecaster."""
         if confidence >= 0.80:
             return (
                 "Model agreement is high. Forecast can be used with standard confidence. "
@@ -331,19 +284,9 @@ class ExplainabilityEngine:
             )
 
 
-# ── Convenience function called by api/main.py ────────────────────────────────
-
 def explain_single_prediction(model, X_row: pd.DataFrame, feature_names: list[str]) -> dict:
-    """
-    One-shot: runs inference + SHAP + explanation for one feature row.
-    Handles both TreeExplainer (XGBoost/LightGBM) and KernelExplainer fallback.
-    """
     engine = ExplainabilityEngine()
-
-    # predict_proba returns shape (n_samples, n_classes); [0][1] = P(bust=1) for first row
     bust_prob = float(model.predict_proba(X_row)[0][1])
-
-    # Try TreeExplainer first (fast); fall back to model's built-in method if available
     try:
         explainer = shap.TreeExplainer(model)
         shap_vals = explainer.shap_values(X_row)
@@ -351,11 +294,9 @@ def explain_single_prediction(model, X_row: pd.DataFrame, feature_names: list[st
         if hasattr(model, "get_shap_values"):
             shap_vals = model.get_shap_values(X_row)
         else:
-            # No SHAP available — return explanation without SHAP factors
             logger.warning("SHAP computation failed; returning explanation without top factors.")
             shap_vals = np.zeros((1, len(feature_names)))
 
-    # For binary classification TreeExplainer returns a list [class0_shap, class1_shap]
     if isinstance(shap_vals, list):
         shap_vals = shap_vals[1]
 
@@ -370,7 +311,6 @@ def explain_single_prediction(model, X_row: pd.DataFrame, feature_names: list[st
 
 
 if __name__ == "__main__":
-    # Smoke test with synthetic data
     engine = ExplainabilityEngine()
     dummy_shap = np.random.randn(15)
     dummy_features = pd.Series({

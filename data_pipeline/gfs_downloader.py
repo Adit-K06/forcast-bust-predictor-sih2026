@@ -1,7 +1,3 @@
-# Downloads GFS 0.25° GRIB forecasts for India and converts to NetCDF.
-# Primary source: NOMADS. Fallback: AWS Open Data (s3://noaa-gfs-bdp-pds).
-# Variables: APCP, PRMSL, UGRD, VGRD, TMP, PWAT, HGT
-
 import os
 import time
 import requests
@@ -18,16 +14,13 @@ warnings.filterwarnings("ignore")
 RAW_DIR = Path(os.getenv("RAW_DATA_DIR", "./data/raw/gfs"))
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
-# India bounding box (slightly wider than needed, trimmed during processing)
 INDIA_LAT_MIN, INDIA_LAT_MAX = 6.0, 37.0
 INDIA_LON_MIN, INDIA_LON_MAX = 66.0, 98.0
 
-# Day 1–10 at 24h intervals
 FORECAST_HOURS = list(range(24, 241, 24))
 
 NOMADS_BASE = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 
-# Maps each variable name to its NOMADS GRIB filter query params
 GFS_VARS = {
     "APCP":  {"var_APCP": "on",  "lev_surface": "on"},
     "PRMSL": {"var_PRMSL": "on", "lev_mean_sea_level": "on"},
@@ -40,7 +33,6 @@ GFS_VARS = {
 
 
 class GFSDownloader:
-
     def __init__(self, raw_dir: Path = RAW_DIR, max_retries: int = 3):
         self.raw_dir = raw_dir
         self.max_retries = max_retries
@@ -139,13 +131,11 @@ class GFSDownloader:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 time.sleep(2 ** attempt)
 
-        # NOMADS failed — try AWS
         return self._download_from_aws(date_str, run_hour, fhour, out_path)
 
     def _download_from_aws(
         self, date_str: str, run_hour: int, fhour: int, out_path: Path
     ) -> xr.Dataset | None:
-        # needs: pip install s3fs
         try:
             import s3fs
             fs = s3fs.S3FileSystem(anon=True)
@@ -164,7 +154,6 @@ class GFSDownloader:
             return None
 
     def _grib_to_netcdf(self, grib_path: Path, nc_path: Path) -> xr.Dataset | None:
-        # cfgrib splits one GRIB file into multiple datasets by typeOfLevel — merge them back
         try:
             import cfgrib
             datasets = cfgrib.open_datasets(str(grib_path))
@@ -184,10 +173,6 @@ class GFSDownloader:
         lon_mask = (ds[lon_dim] >= INDIA_LON_MIN) & (ds[lon_dim] <= INDIA_LON_MAX)
         return ds.sel({lat_dim: lat_mask, lon_dim: lon_mask})
 
-
-
-# Real documented bust events — used for demo mode and mock prediction seeding.
-# Source citations here so judges can verify these aren't fabricated.
 KNOWN_BUST_EVENTS = [
     {
         "date": "2023-07-08",
@@ -220,7 +205,6 @@ KNOWN_BUST_EVENTS = [
         "source": "IMD Cyclone Warning Division post-event report",
     },
 ]
-
 
 if __name__ == "__main__":
     downloader = GFSDownloader()

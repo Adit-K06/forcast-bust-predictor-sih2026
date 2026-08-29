@@ -1,10 +1,3 @@
-"""
-IMD Meteorological Subdivisions — spatial units for bust prediction.
-These are the 36 standard IMD subdivisions used in all official
-forecast verification. Using them makes our output directly
-comparable to IMD's own published skill scores.
-"""
-
 IMD_SUBDIVISIONS = {
     "KERALA": {
         "name": "Kerala",
@@ -197,8 +190,6 @@ IMD_SUBDIVISIONS = {
     },
 }
 
-# For the pilot build, use only these 5 high-contrast regions
-# (different climate zones = diverse bust patterns = richer model)
 PILOT_REGIONS = [
     "KERALA",
     "RAJASTHAN",
@@ -206,7 +197,6 @@ PILOT_REGIONS = [
     "UTTARAKHAND",
     "VIDARBHA",
 ]
-
 
 def get_region_bbox(region_key: str) -> dict:
     """Return lat/lon bounding box for a region."""
@@ -218,10 +208,8 @@ def get_region_bbox(region_key: str) -> dict:
         "lon_max": r["lon_max"],
     }
 
-
 def get_all_region_keys() -> list:
     return list(IMD_SUBDIVISIONS.keys())
-
 
 def get_pilot_region_keys() -> list:
     return PILOT_REGIONS
