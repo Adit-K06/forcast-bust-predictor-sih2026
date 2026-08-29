@@ -1,0 +1,9 @@
+xarray
+cfgrib
+eccodes-python
+requests
+netCDF4
+pandas
+numpy
+cdsapi
+pyarrow
