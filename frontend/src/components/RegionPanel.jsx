@@ -1,51 +1,65 @@
-const PENDING_FIELDS = [
-  'Bust probability',
-  'Confidence score',
-  'Explanation',
-  'Top contributing factors',
-]
+import { getRegionLabel } from '../data/regionSlugMap'
 
-function formatRegionLabel(region) {
-  return region
-    .split('-')
-    .map((word) => word[0].toUpperCase() + word.slice(1))
-    .join(' ')
-}
-
-function RegionPanel({ forecastDate, leadDay, region }) {
+function RegionPanel({ region, forecastDate, leadDay, apiState, mapNotice }) {
   return (
     <div className="region-panel">
       <div className="region-panel-header">
         <h2>Region Intelligence</h2>
         <p className="context-line">
-          {formatRegionLabel(region)} · Day {leadDay} · {forecastDate}
+          {getRegionLabel(region)} · Day {leadDay} · {forecastDate}
         </p>
       </div>
 
-      <div className="empty-state">
-        <div className="empty-icon" aria-hidden="true">
-          <svg viewBox="0 0 48 48" width="40" height="40" fill="none">
-            <circle cx="24" cy="20" r="7" stroke="currentColor" strokeWidth="2" />
-            <path
-              d="M24 27v14M14 41h20"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
+      {mapNotice && (
+        <div className="map-unavailable-banner">
+          Forecast data unavailable for {mapNotice}. The backend currently
+          supports six IMD subdivisions only, not full states.
         </div>
-        <p className="empty-title">Select a region on the map</p>
-        <p className="empty-subtitle">to inspect forecast reliability.</p>
-      </div>
+      )}
 
-      <dl className="pending-fields">
-        {PENDING_FIELDS.map((field) => (
-          <div className="pending-row" key={field}>
-            <dt>{field}</dt>
-            <dd>—</dd>
+      {apiState.status === 'loading' && (
+        <div className="panel-status">Loading forecast reliability…</div>
+      )}
+
+      {apiState.status === 'error' && (
+        <div className="panel-status panel-status-error">
+          Unable to load forecast confidence.
+        </div>
+      )}
+
+      {apiState.status === 'success' && apiState.data && (
+        <div className="forecast-result">
+          {apiState.data.is_mock && <span className="mock-badge">MOCK DATA</span>}
+
+          <div className="result-row">
+            <span className="result-label">Bust Probability</span>
+            <span className="result-value">
+              {Math.round(apiState.data.bust_probability * 100)}%
+            </span>
           </div>
-        ))}
-      </dl>
+
+          <div className="result-row">
+            <span className="result-label">Confidence Score</span>
+            <span className="result-value">
+              {Math.round(apiState.data.confidence_score * 100)}%
+            </span>
+          </div>
+
+          <div className="result-block">
+            <span className="result-label">Explanation</span>
+            <p className="result-text">{apiState.data.explanation_text}</p>
+          </div>
+
+          <div className="result-block">
+            <span className="result-label">Top Factors</span>
+            <ul className="factor-list">
+              {apiState.data.top_factors.map((factor) => (
+                <li key={factor}>{factor}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

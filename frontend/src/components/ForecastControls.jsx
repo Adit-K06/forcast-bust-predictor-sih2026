@@ -1,3 +1,5 @@
+import { BACKEND_REGIONS } from '../data/regionSlugMap'
+
 function ForecastControls({
   forecastDate,
   onForecastDateChange,
@@ -48,12 +50,11 @@ function ForecastControls({
           value={region}
           onChange={(e) => onRegionChange(e.target.value)}
         >
-          <option value="all-india">All India</option>
-          <option value="maharashtra">Maharashtra</option>
-          <option value="karnataka">Karnataka</option>
-          <option value="tamil-nadu">Tamil Nadu</option>
-          <option value="uttar-pradesh">Uttar Pradesh</option>
-          <option value="rajasthan">Rajasthan</option>
+          {BACKEND_REGIONS.map(({ slug, label }) => (
+            <option key={slug} value={slug}>
+              {label}
+            </option>
+          ))}
         </select>
       </div>
     </section>
