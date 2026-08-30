@@ -1,4 +1,4 @@
-# 🌤️ AtmoTrust
+# AtmoTrust
 
 **AI-Powered Forecast Bust Detection System**
 
@@ -6,13 +6,13 @@
 
 ---
 
-## 📖 Overview
+## Overview
 
 AtmoTrust is an intelligent forecast-confidence layer designed to predict **where and when medium-range numerical weather predictions (NWP) are likely to fail**. 
 
 Rather than functioning as a standalone weather predictor, AtmoTrust acts as a "meta-model." It evaluates the output of existing weather models and scores their trustworthiness, providing forecasters with critical insights before they issue public warnings.
 
-## ✨ What It Does
+## What It Does
 
 For any given forecast date and Indian Meteorological Department (IMD) region, AtmoTrust evaluates lead days 1–10 and provides:
 
