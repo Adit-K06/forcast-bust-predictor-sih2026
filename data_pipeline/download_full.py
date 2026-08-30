@@ -6,8 +6,8 @@ import logging
 import time
 from datetime import datetime, timedelta
 
-OUTPUT_DIR = "data-pipeline/output"
-LOG_FILE = "data-pipeline/download.log"
+OUTPUT_DIR = "data_pipeline/output"
+LOG_FILE = "data_pipeline/download.log"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -285,7 +285,7 @@ def main():
     logger.info("")
     logger.info("=" * 60)
     logger.info("Download pipeline complete.")
-    logger.info("Check data-pipeline/download.log for details.")
+    logger.info("Check data_pipeline/download.log for details.")
     logger.info("=" * 60)
 
 

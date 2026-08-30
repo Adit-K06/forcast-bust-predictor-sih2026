@@ -11,7 +11,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('data-pipeline/ingest.log', encoding='utf-8'),
+        logging.FileHandler('data_pipeline/ingest.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -33,7 +33,7 @@ def process_and_align_full():
     - Full monsoon season (June-September 2023)
     - Robust error handling
     """
-    os.makedirs('data-pipeline/output', exist_ok=True)
+    os.makedirs('data_pipeline/output', exist_ok=True)
 
     logger.info("=" * 70)
     logger.info("DAY 3: PRODUCTION SCALE - ALIGNING FORECAST WITH OBSERVATIONS")
@@ -51,7 +51,7 @@ def process_and_align_full():
 
         try:
             # Check for ERA5 file
-            era5_path = f'data-pipeline/output/era5_full_{region_key}.grib'
+            era5_path = f'data_pipeline/output/era5_full_{region_key}.grib'
             if not os.path.exists(era5_path):
                 logger.warning(f"  ⚠ ERA5 file not found: {era5_path}")
                 logger.info(f"    (Run download_full.py first or check region name)")
@@ -71,7 +71,7 @@ def process_and_align_full():
 
             # Load GFS files for this region
             logger.info(f"  2. Loading GFS forecasts...")
-            gfs_pattern = f'data-pipeline/output/gfs_full_{region_key}_*.grib'
+            gfs_pattern = f'data_pipeline/output/gfs_full_{region_key}_*.grib'
             gfs_files = sorted(glob.glob(gfs_pattern))
 
             if not gfs_files:
@@ -175,7 +175,7 @@ def process_and_align_full():
         logger.info(f"{'='*70}")
 
         final_df = pd.concat(all_aligned_data, ignore_index=True)
-        output_path = 'data-pipeline/output/aligned_pilot.parquet'
+        output_path = 'data_pipeline/output/aligned_pilot.parquet'
         final_df.to_parquet(output_path, index=False)
 
         logger.info(f"\n[OK] SUCCESS")

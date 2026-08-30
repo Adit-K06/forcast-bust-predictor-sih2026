@@ -3,7 +3,7 @@ import requests
 import os
 from datetime import datetime, timedelta
 
-os.makedirs("data-pipeline/output", exist_ok=True)
+os.makedirs("data_pipeline/output", exist_ok=True)
 
 # Day 2: Download full 14-day pilot period (July 1-14, 2023)
 # Coastal Karnataka: 15.5N, 74.0E to 12.5N, 75.5E
@@ -33,7 +33,7 @@ c.retrieve(
         'area': REGION,
         'format': 'grib',
     },
-    'data-pipeline/output/era5_pilot_20230701_20230714.grib'
+    'data_pipeline/output/era5_pilot_20230701_20230714.grib'
 )
 print("✓ ERA5 download complete")
 
@@ -47,7 +47,7 @@ for date in dates:
         gfs_url = f"https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{date_str}/00/atmos/gfs.t00z.pgrb2.0p25.f024"
         response = requests.get(gfs_url, stream=True, timeout=30)
         if response.status_code == 200:
-            with open(f'data-pipeline/output/gfs_pilot_{date_str}.grib', 'wb') as f:
+            with open(f'data_pipeline/output/gfs_pilot_{date_str}.grib', 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
             print(f"  ✓ {date_str}")
@@ -56,4 +56,4 @@ for date in dates:
     except Exception as e:
         print(f"  ⚠ {date_str} download failed: {str(e)}")
 
-print("\nPilot data download complete. Files saved to data-pipeline/output/")
+print("\nPilot data download complete. Files saved to data_pipeline/output/")
