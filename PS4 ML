@@ -1,1 +1,154 @@
+import pandas as pd
+import numpy as np
+import os
+import joblib
 
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_loss
+
+
+class BustModelTrainer:
+    def __init__(self):
+        self.model = RandomForestClassifier(
+            n_estimators=100,
+            max_depth=5,
+            min_samples_leaf=5,
+            class_weight="balanced",
+            random_state=42
+        )
+
+    def load_data(self):
+        path = "data/features/features.parquet"
+        if not os.path.exists(path):
+            raise FileNotFoundError("features.parquet not found")
+
+        df = pd.read_parquet(path)
+        print(f"Loaded data: {df.shape}")
+        return df
+
+    def preprocess(self, df):
+        df = df.copy()
+
+        if "init_date" in df.columns:
+            df = df.sort_values("init_date")
+            df = df.drop(columns=["init_date"])
+
+        if "lead_day" in df.columns:
+            df = df.drop(columns=["lead_day"])
+
+        if "region" in df.columns:
+            df["region"] = df["region"].astype("category").cat.codes
+
+        if "season" in df.columns:
+            df["season"] = df["season"].astype("category").cat.codes
+
+        df = df.fillna(0)
+
+        return df
+
+    def split(self, df):
+        n = len(df)
+        train_end = int(0.7 * n)
+        val_end = int(0.85 * n)
+
+        train = df.iloc[:train_end]
+        val = df.iloc[train_end:val_end]
+        test = df.iloc[val_end:]
+
+        print(f"Train: {len(train)} | Val: {len(val)} | Test: {len(test)}")
+
+        return train, val, test
+
+    def train(self, X, y):
+        if len(np.unique(y)) < 2:
+            y = y.copy()
+            y.iloc[0] = 1 - y.iloc[0]
+
+        self.model.fit(X, y)
+
+    def evaluate(self, X, y, name="Set"):
+        print(f"\n{name} Metrics:")
+
+        if len(np.unique(y)) < 2:
+            return {"roc_auc": None, "pr_auc": None, "brier": None}
+
+        probs = self.model.predict_proba(X)
+
+        if probs.shape[1] < 2:
+            return {"roc_auc": None, "pr_auc": None, "brier": None}
+
+        probs = probs[:, 1]
+
+        roc = roc_auc_score(y, probs)
+        pr = average_precision_score(y, probs)
+        brier = brier_score_loss(y, probs)
+
+        print(f"ROC-AUC: {roc:.4f}")
+        print(f"PR-AUC: {pr:.4f}")
+        print(f"Brier Score: {brier:.4f}")
+
+        return {
+            "roc_auc": roc,
+            "pr_auc": pr,
+            "brier": brier
+        }
+
+    def save(self):
+        os.makedirs("models", exist_ok=True)
+        joblib.dump(self.model, "models/model.pkl")
+        print("Model saved to models/model.pkl")
+
+    def run(self, tune=False):
+        df = self.load_data()
+
+        if "is_bust" not in df.columns:
+            raise ValueError("Column 'is_bust' not found")
+
+        df = self.preprocess(df)
+
+        train_df, val_df, test_df = self.split(df)
+
+        X_train = train_df.drop(columns=["is_bust"])
+        y_train = train_df["is_bust"]
+
+        X_val = val_df.drop(columns=["is_bust"])
+        y_val = val_df["is_bust"]
+
+        X_test = test_df.drop(columns=["is_bust"])
+        y_test = test_df["is_bust"]
+
+        self.train(X_train, y_train)
+
+        train_metrics = self.evaluate(X_train, y_train, "Train")
+        val_metrics = self.evaluate(X_val, y_val, "Validation")
+        test_metrics = self.evaluate(X_test, y_test, "Test")
+
+        self.save()
+
+        results = {
+            "train": train_metrics,
+            "val": val_metrics,
+            "test": test_metrics
+        }
+
+        with open("models/evaluation_results.json", "w") as f:
+            import json
+            json.dump(results, f, indent=4)
+
+        try:
+            feature_names = X_train.columns
+            importances = self.model.feature_importances_
+
+            feat_imp = pd.DataFrame({
+                "feature": feature_names,
+                "importance": importances
+            }).sort_values(by="importance", ascending=False)
+
+            print("\nFeature Importance:")
+            print(feat_imp)
+
+            feat_imp.to_csv("models/feature_importance.csv", index=False)
+        except:
+            pass
+
+        return results
