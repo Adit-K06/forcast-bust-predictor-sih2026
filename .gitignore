@@ -10,3 +10,4 @@ data-pipeline/output/
 .vscode/
 clean_corrupted.py
 fix_data.py
+.env
