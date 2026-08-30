@@ -132,7 +132,7 @@ GET  /docs                          Interactive OpenAPI documentation
 
 ---
 
-## Known Limitations (be honest with judges)
+## Known Limitations
 
 1. **ERA5 latency**: reanalysis data is available ~5 days after real-time, so the system is designed for operational post-processing and near-real-time verification, not true real-time forecasting.
 2. **GFS only**: adding ECMWF model data would improve ensemble spread features but requires institutional access.
