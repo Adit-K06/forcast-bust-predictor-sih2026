@@ -1,51 +1,100 @@
-# P2 Data Pipeline — Till Day 3
+# P2 — Data Pipeline
+
+A robust data ingestion and preprocessing pipeline for aligning **ERA5 reanalysis observations** with **GFS weather forecasts** for precipitation forecasting across multiple Indian regions.
 
 ## Overview
 
-The pipeline:
+The P2 data pipeline prepares physically consistent, ML-ready datasets by:
 
-- Downloads **ERA5 reanalysis** as observed ground truth.
-- Downloads **GFS forecasts** from AWS Open Data.
-- Regrids GFS onto the ERA5 grid using `xarray.interp()`.
-- Aligns forecast and observed precipitation values.
-- Produces a Parquet dataset for P3 (ML) and P6 (Baseline).
-- Includes logging, retry/resume behavior, and graceful handling of incomplete files.
+- Downloading **ERA5 reanalysis** data from Copernicus CDS as observed ground truth.
+- Downloading **GFS forecasts** from AWS Open Data.
+- Regridding GFS forecasts onto the ERA5 spatial grid using `xarray.interp()`.
+- Aligning forecast and observed precipitation values.
+- Converting precipitation units into consistent **millimeter (mm)** measurements.
+- Running automated data-quality and physics validation.
+- Producing Parquet datasets for downstream **ML (P3)** and **Baseline (P6)** pipelines.
+- Providing a lightweight offline dataset for reliable live demonstrations.
 
 ---
 
-## What Was Delivered
-
-### Day 2 — Pilot Pipeline
-
-**Coverage**
-
-- Period: **July 1–14, 2023**
-- Region: **Coastal Karnataka**
-- Duration: **14 days**
-
-**Files**
+## Pipeline Architecture
 
 ```text
-data-pipeline/
-├── download_pilot.py
-└── ingest.py
+                 ┌─────────────────────┐
+                 │   ERA5 Reanalysis   │
+                 │   Copernicus CDS    │
+                 └──────────┬──────────┘
+                            │
+                            │ Observations
+                            ▼
+                    ┌───────────────┐
+                    │ ERA5 Grid     │
+                    │ Precipitation │
+                    │     → mm      │
+                    └───────┬───────┘
+                            │
+                            │
+                            │ Alignment
+                            ▼
+┌────────────────┐   ┌───────────────┐
+│ GFS Forecasts  │──▶│ Regridding    │
+│ AWS Open Data  │   │ xarray.interp │
+└────────────────┘   └───────┬───────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │ Aligned Dataset  │
+                    │ Forecast vs Obs  │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ QA Validation    │
+                    │ qa_pass.py       │
+                    └────────┬─────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │ Parquet Dataset  │
+                    │ ML / Baseline    │
+                    └──────────────────┘
 ```
 
-**Workflow**
+---
 
-```text
-ERA5 observations
-       +
-GFS forecasts
-       ↓
-GFS → ERA5 regridding
-       ↓
-Forecast/observation alignment
-       ↓
-aligned_pilot.parquet
+# Development Timeline
+
+## Day 1 — Data Access & Initial Architecture
+
+- Verified programmatic access to **ERA5 reanalysis** through Copernicus CDS.
+- Verified access to **GFS forecasts** through AWS Open Data.
+- Established the initial ingestion architecture.
+- Downloaded pilot data for **Coastal Karnataka**.
+
+---
+
+## Day 2 — Pilot Alignment Pipeline
+
+### Coverage
+
+| Parameter | Value |
+|---|---|
+| Period | July 1–14, 2023 |
+| Duration | 14 days |
+| Region | Coastal Karnataka |
+| GFS Resolution | 0.25° |
+
+### Implementation
+
+GFS forecasts were regridded onto the ERA5 observation grid using:
+
+```python
+xarray.interp(..., method="linear")
 ```
 
-**Actual result**
+This ensured that forecast and observed precipitation values were spatially aligned before comparison.
+
+### Output
 
 ```text
 Rows:       17,836
@@ -54,23 +103,23 @@ Date range: 20230701 → 20230714
 Region:     Coastal Karnataka
 ```
 
-Schema:
+### Files
 
 ```text
-latitude
-longitude
-region
-date
-lead_day
-forecast_value
-observed_value
+data-pipeline/
+├── download_pilot.py
+└── ingest.py
 ```
+
+The resulting `aligned_pilot.parquet` dataset was used to unblock the downstream ML and baseline teams.
 
 ---
 
-### Day 3 — Production Pipeline
+# Day 3 — Production Pipeline
 
-**Coverage**
+The pipeline was scaled from the pilot dataset to the complete **2023 monsoon season**.
+
+### Coverage
 
 - Period: **June 1 – September 30, 2023**
 - Duration: **122 days**
@@ -78,10 +127,10 @@ observed_value
   - Coastal Karnataka
   - Maharashtra
   - Tamil Nadu
-- GFS forecast: **lead time f024 / lead_day=1**
-- Observation variable: **total precipitation**
+- GFS forecast lead time: **f024 / lead_day=1**
+- Observation variable: **Total precipitation**
 
-**Files**
+### Production Files
 
 ```text
 data-pipeline/
@@ -90,38 +139,15 @@ data-pipeline/
 └── requirements-day3.txt
 ```
 
-**Workflow**
-
-```text
-                    DAY 3
-                      │
-          ┌───────────┴───────────┐
-          │                       │
-        ERA5                     GFS
-          │                       │
-   Regional ground truth    Daily forecasts
-          │                       │
-          └───────────┬───────────┘
-                      ↓
-            GFS → ERA5 regridding
-                      ↓
-           Forecast/observation merge
-                      ↓
-              Multi-region dataset
-                      ↓
-              Parquet dataset
-```
-
-**Actual result**
+### Final Dataset
 
 ```text
 Total rows: 6,013,136
 Date range: 20230601 → 20230930
-Regions:    Coastal Karnataka, Maharashtra, Tamil Nadu
 Columns:    7
 ```
 
-Regional totals:
+### Regional Distribution
 
 ```text
 Coastal Karnataka : 1,354,444
@@ -131,399 +157,411 @@ Tamil Nadu        : 1,711,660
 Total             : 6,013,136
 ```
 
-Final schema:
-
-```text
-latitude
-longitude
-region
-date
-lead_day
-forecast_value
-observed_value
-```
-
-> Note: the current production script writes the final dataset to `data-pipeline/output/aligned_pilot.parquet`. The filename is retained for compatibility with the existing pipeline, but the Day 3 contents are the full production dataset.
+The production pipeline includes error handling and resume behavior so individual network or file failures do not terminate the complete dataset build.
 
 ---
 
-## Reliability Fixes Applied
+# Day 4 — QA & Physics Validation
 
-### 1. ERA5 duplicate-day request
+An automated QA script was introduced to validate the production dataset.
 
-**Problem**
+### QA Script
 
-The original full-season CDS request supplied multiple months together with repeated day values. For example, `01` appeared once for June, once for July, once for August, and once for September.
+```text
+qa_pass.py
+```
 
-The CDS API rejected the request with:
+The validation process checks:
+
+- Data types
+- Missing values
+- Date completeness
+- Forecast/observation ranges
+- Physical plausibility
+- Dataset structure
+
+### Critical Issue Identified
+
+The initial GFS extraction selected an incorrect variable, resulting in atmospheric pressure values instead of precipitation.
+
+At the same time, ERA5 precipitation was stored in **meters**, while the ML pipeline expected precipitation in **millimeters**.
+
+### Fixes Applied
+
+#### GFS
+
+The extraction was restricted to surface accumulated precipitation:
+
+```python
+filter_by_keys={
+    'typeOfLevel': 'surface',
+    'stepType': 'accum'
+}
+```
+
+#### ERA5
+
+Total precipitation was converted from meters to millimeters:
+
+```python
+tp_mm = tp * 1000.0
+```
+
+### Final QA Values
+
+```text
+Maximum Forecast Precipitation : 160.4 mm
+Maximum Observed Precipitation : 17.7 mm
+```
+
+The resulting dataset is physically consistent and suitable for downstream ML training.
+
+---
+
+# Day 5 & Day 6 — Offline Demo Dataset
+
+To ensure that the live pitch did not depend on external APIs or network availability, a targeted historical extraction workflow was developed.
+
+### Purpose
+
+Instead of downloading the complete production dataset during the demonstration, the pipeline extracts a small set of predefined historical case studies.
+
+### Coverage
+
+**Historical dates:** 5 specific cases from 2021–2023
+
+**Regions:**
+
+- Odisha
+- Kerala
+- Uttarakhand
+- Vidarbha
+- Andhra Pradesh Coast
+
+### Files
+
+```text
+data-pipeline/
+├── download_demo.py
+├── ingest_demo.py
+└── output/
+    └── demo_data_offline.parquet
+```
+
+### Final Dataset
+
+```text
+Rows:    7,940
+Columns: 7
+```
+
+The offline dataset provides a lightweight and physically accurate data source for the live judging/demo interface without requiring real-time API access.
+
+---
+
+# Reliability & Engineering Fixes
+
+## 1. ERA5 Duplicate-Day Request
+
+### Problem
+
+The CDS API rejected full-season requests with:
 
 ```text
 request['day']: has repeated values in the list
 ```
 
-**Fix**
+### Solution
 
-ERA5 is downloaded **month-by-month**:
-
-```text
-June
-July
-August
-September
-```
-
-The monthly files are then combined into the region-specific ERA5 files used by the ingestion pipeline.
+ERA5 data is downloaded **month-by-month** and subsequently combined into region-specific datasets.
 
 ---
 
-### 2. Windows Unicode logging
+## 2. Windows Unicode Logging
 
-**Problem**
+### Problem
 
-Windows `cp1252` console encoding could not represent symbols such as:
-
-```text
-✓  ✗  ⚠  →
-```
-
-This produced:
+Windows `cp1252` console encoding caused:
 
 ```text
-UnicodeEncodeError: 'charmap' codec can't encode character
+UnicodeEncodeError
 ```
 
-**Fix**
+when logging special status symbols.
 
-Production logging uses UTF-8 for the log file and ASCII status labels:
+### Solution
+
+Production logs use UTF-8, while console status messages use ASCII-safe labels:
 
 ```text
 [OK]
-[ERROR]
 [WARN]
--->
+[ERROR]
 ```
 
 ---
 
-### 3. Incomplete / corrupted GFS files
+## 3. Incomplete / Corrupted GFS Files
 
-**Problem**
+### Problem
 
-Interrupted downloads can create truncated GRIB files. `cfgrib` may then report:
+Interrupted downloads could produce truncated GRIB files and errors such as:
 
 ```text
-PrematureEndOfFileError:
-End of resource reached when reading message
+PrematureEndOfFileError
 ```
 
-**Fix**
+### Solution
 
-The ingestion pipeline handles individual file-processing failures without terminating the complete run. Successful and failed/skipped files are tracked in the logs.
+Individual file-processing failures are handled using `try/except`.
 
-When a download is incomplete, the downloader can be run again to recover the missing file.
+Successful and skipped files are recorded in the logs without terminating the entire pipeline.
 
 ---
 
-### 4. AWS DNS / network failures
+## 4. AWS DNS / Network Failures
 
-**Problem**
+### Problem
 
-Some GFS requests temporarily failed with:
+Temporary AWS DNS failures produced errors such as:
 
 ```text
 getaddrinfo failed
 ```
 
-This indicates a DNS/network resolution failure while connecting to the AWS GFS endpoint.
+### Solution
 
-**Fix**
+The downloader:
 
-The downloader continues after individual failures and supports re-running to recover missing dates. Failed dates were successfully recovered during the Day 3 run.
+- Continues after individual download failures.
+- Checks whether files already exist.
+- Can be safely re-run.
+- Recovers missing files on subsequent runs.
 
----
-
-### 5. Efficient GFS handling
-
-GFS is a global forecast product. The downloader retrieves each daily source file once and creates region-specific links/files for the filenames expected by `ingest_full.py`.
-
-This avoids downloading identical global GFS data separately for every region.
+This provides basic **resume/recovery behavior**.
 
 ---
 
-## Key Design Decisions
+## 5. Efficient GFS Downloading
 
-### Regridding
+### Problem
 
-GFS data is regridded to the ERA5 grid using:
+Downloading the same global GFS source file separately for every region would unnecessarily increase bandwidth and processing time.
+
+### Solution
+
+Each daily GFS source file is downloaded once and then mapped locally to the required regions.
+
+---
+
+# Key Design Decisions
+
+## Regridding
+
+GFS has a **0.25° spatial resolution**, while the observation grid differs.
+
+To make forecast and observed precipitation directly comparable, GFS is interpolated onto the ERA5 grid:
 
 ```python
-xarray.interp(..., method="linear")
+gfs.interp(
+    latitude=era5.latitude,
+    longitude=era5.longitude,
+    method="linear"
+)
 ```
 
-This allows forecast and observation values to be compared on the same spatial grid.
+This ensures both datasets share a common spatial coordinate system.
 
-### Variables
+---
 
-The pipeline uses:
+## Precipitation Variables
 
-- **ERA5:** total precipitation (`tp`)
-- **GFS:** forecast data at the required GRIB level/filter
-
-### Error handling
-
-The Day 3 pipeline:
-
-- Catches download errors.
-- Continues when an individual day fails.
-- Skips corrupted GRIB messages/files during ingestion.
-- Reports success/failure counts.
-
-### Logging
-
-Logs are written to:
+### ERA5
 
 ```text
-data-pipeline/download.log
-data-pipeline/ingest.log
+Variable: total precipitation (tp)
+Original unit: meters
+Final unit: millimeters
 ```
 
-and important status information is also printed to the console.
+Conversion:
 
-### Multi-region design
+```python
+tp_mm = tp * 1000.0
+```
 
-Regions are configured centrally so additional regions can be added later without redesigning the overall pipeline.
-
----
-
-## Repository Files
-
-The source/documentation files for P2 are:
+### GFS
 
 ```text
-data-pipeline/
-├── download_pilot.py
-├── ingest.py
-├── download_full.py
-├── ingest_full.py
-├── requirements.txt
-├── requirements-day3.txt
-├── README.md
-└── output/
+Variable: surface accumulated precipitation
+Final datatype: float64
 ```
 
+The GFS extraction specifically targets surface accumulated precipitation rather than atmospheric pressure variables.
 
 ---
 
-## Environment Setup
+# Multi-Region Architecture
 
-Windows uses Conda because `cfgrib` depends on native ecCodes libraries.
+Regions are centrally configured so additional geographic regions can be added without redesigning the pipeline.
 
-Create the environment:
+Conceptually:
 
-```powershell
-conda create -n forecast-p2 -c conda-forge python=3.11 xarray cfgrib eccodes pandas requests netcdf4 cdsapi pyarrow scipy -y
+```python
+REGIONS = {
+    "coastal_karnataka": {...},
+    "maharashtra": {...},
+    "tamil_nadu": {...}
+}
 ```
 
-Activate:
-
-```powershell
-conda activate forecast-p2
-```
-
-For ERA5 access, configure the required CDS API credentials in the user's home directory.
+This makes the pipeline extensible for additional IMD subdivisions or other geographic areas.
 
 ---
 
-## Running Day 2
+# Repository Structure
 
-Download the pilot data:
-
-```powershell
-python data-pipeline/download_pilot.py
-```
-
-Process and align it:
-
-```powershell
-python data-pipeline/ingest.py
-```
-
-Check the output:
-
-```powershell
-Get-ChildItem data-pipeline/output
+```text
+ocs/
+├── contributions/
+│   └── P2.md
+│
+└── data-pipeline/
+    ├── download_pilot.py
+    ├── ingest.py
+    ├── download_full.py
+    ├── ingest_full.py
+    ├── download_demo.py
+    ├── ingest_demo.py
+    ├── qa_pass.py
+    │
+    ├── requirements.txt
+    ├── requirements-day3.txt
+    ├── README.md
+    │
+    └── output/
+        ├── aligned_pilot.parquet
+        └── demo_data_offline.parquet
 ```
 
 ---
 
-## Running Day 3
+# Running the Pipeline
 
-Download the production data:
+## 1. Production Dataset
+
+### Download source data
 
 ```powershell
 python data-pipeline/download_full.py
 ```
 
-Then align all regions:
+### Build aligned dataset
 
 ```powershell
 python data-pipeline/ingest_full.py
 ```
 
-Check the logs:
+### Run QA validation
 
 ```powershell
-Get-Content data-pipeline/download.log
-Get-Content data-pipeline/ingest.log
+python data-pipeline/qa_pass.py
 ```
 
 ---
 
-## Validation
+## 2. Offline Demo Dataset
 
-Validate the Parquet dataset with pandas:
+### Download targeted historical data
 
 ```powershell
-python -c "import pandas as pd; df=pd.read_parquet('data-pipeline/output/aligned_pilot.parquet'); print('Shape:', df.shape); print('Columns:', list(df.columns)); print('Date range:', df['date'].min(), 'to', df['date'].max()); print('Regions:', df['region'].unique()); print('Nulls:'); print(df.isna().sum())"
+python data-pipeline/download_demo.py
 ```
 
-For the completed Day 3 run, the observed production values were:
-
-```text
-Shape:      (6013136, 7)
-Date range: 20230601 to 20230930
-Regions:    Coastal Karnataka, Maharashtra, Tamil Nadu
-```
-
----
-
-## Handoff to P3 — ML Team
-
-The aligned dataset contains:
-
-```text
-latitude
-longitude
-region
-date
-lead_day
-forecast_value
-observed_value
-```
-
-It is ready for:
-
-- Feature engineering
-- Forecast-error analysis
-- Bias correction
-- Deep-learning model training
-- Lead-time experiments
-
-Suggested split for baseline/ML evaluation should keep forecast and observation pairs aligned by date and location.
-
----
-
-## Handoff to P6 — Baseline Team
-
-Use the same aligned dataset as P3 so that the baseline and ML model are evaluated on identical forecast/observation pairs.
-
-Possible deterministic baselines include:
-
-```text
-Persistence
-Climatology
-NWP bias correction
-```
-
-Suggested metrics:
-
-```text
-RMSE
-MAE
-Correlation
-```
-
----
-
-## Next Steps
-
-1. Validate the production dataset with P3 and P6.
-2. Decide whether additional forecast lead times are required.
-3. Add additional weather variables if requested by the ML team.
-4. Monitor CDS API and AWS access limits during future data expansion.
-5. Archive the generated dataset outside Git for reproducibility.
-
-Potential future GFS lead times include:
-
-```text
-f024
-f048
-f072
-...
-```
-
----
-
-## Support / Troubleshooting
-
-### Environment problems
-
-Check:
-
-- Conda environment activation
-- `cfgrib` / ecCodes installation
-- SciPy installation
-- CDS API credentials
-
-Test the environment:
+### Build the demo dataset
 
 ```powershell
-python -c "import xarray, cfgrib, scipy, pandas; print('Environment OK')"
+python data-pipeline/ingest_demo.py
 ```
 
-### Download problems
+The resulting dataset is:
 
-Check:
-
-- Internet connection
-- CDS API status/quota
-- AWS S3 connectivity
-- `data-pipeline/download.log`
-
-For temporary GFS failures, re-run the downloader to recover missing dates.
-
-### Alignment problems
-
-Check:
-
-- GRIB file integrity
-- Latitude/longitude grids
-- Missing values / NaNs
-- `data-pipeline/ingest.log`
+```text
+data-pipeline/output/demo_data_offline.parquet
+```
 
 ---
 
-## Completion Status
+# Output Summary
 
-### Day 2
+| Dataset | Period | Regions | Rows |
+|---|---|---|---:|
+| Pilot | Jul 1–14, 2023 | Coastal Karnataka | 17,836 |
+| Production | Jun 1–Sep 30, 2023 | 3 regions | 6,013,136 |
+| Offline Demo | 2021–2023 cases | 5 regions | 7,940 |
+
+All final precipitation values are represented in **millimeters (mm)** and use compatible numeric datatypes for downstream ML processing.
+
+---
+
+# Downstream Consumers
+
+The P2 pipeline provides datasets for:
 
 ```text
-[OK] 14-day ERA5 pilot downloaded
-[OK] 14-day GFS pilot downloaded
-[OK] GFS regridded to ERA5 grid
-[OK] Forecast/observation pairs generated
-[OK] Pilot Parquet created
+P2 — Data Pipeline
+        │
+        ├───────────────┐
+        ▼               ▼
+   P3 — ML         P6 — Baseline
+        │               │
+        └───────┬───────┘
+                ▼
+          Forecasting UI
+             / Demo
 ```
 
-### Day 3
+The primary goal of P2 is to ensure that downstream teams receive **clean, aligned, physically valid, and reproducible data**.
+
+---
+
+# Final Deliverables
+
+### Production
 
 ```text
-[OK] 122-day monsoon period downloaded
-[OK] 3 regions processed
-[OK] ERA5 observations available
-[OK] GFS forecasts available
-[OK] GFS regridding completed
-[OK] Corrupt/incomplete files handled
-[OK] Production Parquet created
-[OK] Dataset ready for P3 and P6
+6,013,136 rows
+122 days
+3 regions
+7 columns
 ```
+
+### Offline Demo
+
+```text
+7,940 rows
+5 historical regional case studies
+7 columns
+```
+
+### Core Capabilities
+
+- ERA5 ingestion
+- GFS ingestion
+- Spatial regridding
+- Forecast/observation alignment
+- Unit normalization
+- Automated QA
+- Error handling
+- Resume/recovery behavior
+- Multi-region processing
+- Offline demo extraction
+- Parquet dataset generation
+
+---
+
+## Status
+
+**P2 Data Pipeline — Completed through Day 6**
+
+The pipeline successfully produces ML-ready precipitation datasets while remaining resilient to API limitations, network failures, corrupted source files, datatype mismatches, and physical unit inconsistencies.

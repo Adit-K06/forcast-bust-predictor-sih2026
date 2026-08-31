@@ -1,9 +1,9 @@
 
 import pandas as pd
 
-print("Running Day 4 QA Pass on aligned_pilot.parquet...")
+print("Running Day 4 QA Pass on demo_data_offline.parquet...")
 
-df = pd.read_parquet('data-pipeline/output/aligned_pilot.parquet')
+df = pd.read_parquet('data-pipeline/output/demo_data_offline.parquet')
 
 print("\n--- Data Types ---")
 print(df.dtypes)
