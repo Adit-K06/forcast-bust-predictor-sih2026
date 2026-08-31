@@ -86,11 +86,13 @@ def process_and_align_full():
             if 'tp' in df_era5.columns:
                 df_era5 = df_era5[['latitude', 'longitude', 'tp']].copy()
                 df_era5.rename(columns={'tp': 'observed_value'}, inplace=True)
+                df_era5['observed_value'] = df_era5['observed_value'] * 1000.0  # Convert meters to mm
             else:
                 # Handle other variable names
                 var_col = [c for c in df_era5.columns if c not in ['latitude', 'longitude']][0]
                 df_era5 = df_era5[['latitude', 'longitude', var_col]].copy()
                 df_era5.rename(columns={var_col: 'observed_value'}, inplace=True)
+                df_era5['observed_value'] = df_era5['observed_value'] * 1000.0  # Convert meters to mm
 
             # Process each GFS file
             logger.info(f"  3. Regridding and merging...")
@@ -108,7 +110,7 @@ def process_and_align_full():
                             engine='cfgrib',
                             backend_kwargs={
                                 'indexpath': '',
-                                'filter_by_keys': {'typeOfLevel': 'meanSea'}
+                                'filter_by_keys': {'typeOfLevel': 'surface', 'stepType': 'accum'}
                             }
                         )
                     except Exception as grib_err:
@@ -127,9 +129,10 @@ def process_and_align_full():
                         method='linear'
                     )
 
+                    # Get the actual weather variable directly from xarray before flattening
+                    gfs_var = list(gfs_regridded.data_vars)[0]
+                    
                     df_gfs = gfs_regridded.to_dataframe().reset_index()
-                    # Find the forecast variable (not lat/lon)
-                    gfs_var = [c for c in df_gfs.columns if c not in ['latitude', 'longitude']][0]
                     df_gfs = df_gfs[['latitude', 'longitude', gfs_var]].copy()
                     df_gfs.rename(columns={gfs_var: 'forecast_value'}, inplace=True)
 
