@@ -1,0 +1,7 @@
+fastapi>=0.111
+uvicorn[standard]>=0.29
+pydantic>=2.6
+shap>=0.45
+joblib>=1.4
+pandas>=2.2
+numpy>=1.26
