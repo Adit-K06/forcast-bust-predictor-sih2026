@@ -61,7 +61,7 @@ function ModelInfoBadge() {
 
   useEffect(() => {
     getModelInfo().then(setInfo).catch(() => setError('Backend unreachable'))
-    getSkillScore().then(setSkill).catch(() => {})
+    getSkillScore().then(setSkill).catch(() => { })
   }, [])
 
   if (error) {
@@ -89,69 +89,46 @@ function ModelInfoBadge() {
 
   return (
     <div className="model-info-panel fade-in">
-      <h2>
-        Model Intelligence Report
-        <span style={{
-          fontSize: 11, padding: '4px 10px', borderRadius: 20, marginLeft: 12,
-          background: info.real_model_loaded ? 'rgba(63,185,80,0.12)' : 'rgba(210,153,34,0.12)',
-          color: info.real_model_loaded ? 'var(--risk-low)' : 'var(--risk-medium)',
-          fontWeight: 600, letterSpacing: '0.06em', fontFamily: 'var(--font-mono)',
-        }}>
-          {info.real_model_loaded ? '● REAL MODEL LOADED' : '○ MODEL NOT LOADED'}
-        </span>
-      </h2>
+      <div className="model-report-header">
+        <div>
+          <h2>Model Intelligence Report</h2>
+          <p className="model-report-subtitle">
+            RandomForestClassifier trained on 6M monsoon samples &middot; SHAP TreeExplainer &middot; Evaluated on Sept 2023 hold-out set
+          </p>
+        </div>
+        <div className={`model-status-badge ${info.real_model_loaded ? 'real' : 'mock'}`}>
+          <span className="model-badge-dot" />
+          {info.real_model_loaded ? 'REAL MODEL ACTIVE' : 'MOCK MODE'}
+        </div>
+      </div>
+
 
       {/* ── Brier Skill Score Hero Card ─────────────────────────── */}
       {skillData && (
-        <div style={{
-          background: 'linear-gradient(135deg, #0f2027 0%, #1a2a1a 100%)',
-          border: '1px solid rgba(63,185,80,0.3)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 24,
-          marginBottom: 20,
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            position: 'absolute', top: -20, right: -20,
-            width: 120, height: 120, borderRadius: '50%',
-            background: 'rgba(63,185,80,0.05)',
-          }} />
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.10em', color: 'var(--risk-low)', fontWeight: 700, marginBottom: 8 }}>
-            Brier Skill Score vs Climatological Baseline
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
-            <div>
-              <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 56, fontWeight: 700,
-                color: 'var(--risk-low)', textShadow: '0 0 30px rgba(63,185,80,0.4)',
-                lineHeight: 1,
-              }}>
-                {(skillData.brier_skill_score ?? 0.817).toFixed(3)}
-              </span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 22, color: 'rgba(63,185,80,0.6)', marginLeft: 4 }}>/1.0</span>
+        <div className="bss-hero-card">
+          <div className="bss-hero-label">BRIER SKILL SCORE vs CLIMATOLOGICAL BASELINE</div>
+          <div className="bss-hero-score-row">
+            <div className="bss-hero-number">
+              <span className="bss-score-value">{(skillData.brier_skill_score ?? 0.817).toFixed(3)}</span>
+              <span className="bss-score-max">/1.000</span>
             </div>
-            <div style={{ paddingBottom: 8 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                Model beats naive climatology by <strong style={{ color: 'var(--risk-low)' }}>81.7%</strong>
+            <div className="bss-hero-context">
+              <div className="bss-sample-line">
+                {((skillData.n_test_rows ?? 901971) / 1000).toFixed(0)}K independent test samples · Sept 2023 hold-out
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                {((skillData.n_test_rows ?? 901971) / 1000).toFixed(0)}K test samples · Sept 2023
-              </div>
+              <div className="bss-scale-hint">Climatological baseline: {(skillData.brier_baseline ?? 0.1963).toFixed(4)} &middot; Skill Score range 0–1</div>
             </div>
           </div>
-
-          <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div className="bss-trio">
             {[
-              { label: 'Brier (Baseline)', val: skillData.brier_baseline ?? 0.1963, good: false },
-              { label: 'Brier (Model)', val: skillData.brier_model ?? 0.0359, good: true },
-              { label: 'Improvement', val: (skillData.brier_baseline ?? 0.1963) - (skillData.brier_model ?? 0.0359), good: true },
-            ].map(({ label, val, good }) => (
-              <div key={label} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: good ? 'var(--risk-low)' : 'var(--text-secondary)', marginTop: 4 }}>
-                  {val.toFixed(4)}
-                </div>
+              { label: 'Climatology Brier', val: skillData.brier_baseline ?? 0.1963, good: false, note: 'baseline' },
+              { label: 'AtmoTrust Brier', val: skillData.brier_model ?? 0.0359, good: true, note: 'our model' },
+              { label: 'Absolute Improvement', val: (skillData.brier_baseline ?? 0.1963) - (skillData.brier_model ?? 0.0359), good: true, note: 'lower = better' },
+            ].map(({ label, val, good, note }) => (
+              <div key={label} className={`bss-trio-cell ${good ? 'good' : ''}`}>
+                <div className="bss-trio-label">{label}</div>
+                <div className="bss-trio-val">{val.toFixed(4)}</div>
+                <div className="bss-trio-note">{note}</div>
               </div>
             ))}
           </div>

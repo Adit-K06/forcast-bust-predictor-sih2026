@@ -20,13 +20,18 @@ function OutlookChart({ outlookState, currentLeadDay, onLeadDayClick }) {
   }
 
   const { outlook } = outlookState.data
+  const maxPct = Math.max(...outlook.map(d => d.bust_probability * 100), 1)
 
   return (
     <div className="outlook-chart" role="list" aria-label="10-day bust probability outlook">
+      <div className="outlook-chart-header">
+        <span className="outlook-axis-label">GFS bust probability by lead day — click to select</span>
+      </div>
       {outlook.map(day => {
         const pct = Math.round(day.bust_probability * 100)
         const riskClass = getRiskClass(day.bust_probability)
         const isActive = day.lead_day === currentLeadDay
+        const barWidth = Math.round((pct / maxPct) * 100)
 
         return (
           <div
@@ -37,19 +42,21 @@ function OutlookChart({ outlookState, currentLeadDay, onLeadDayClick }) {
             aria-label={`Day ${day.lead_day}: ${pct}% bust probability`}
             title={`Day ${day.lead_day} — ${day.confidence_label} confidence${day.is_mock ? ' (mock)' : ''}`}
           >
-            <span className="outlook-day-label">Day {day.lead_day}</span>
+            <span className="outlook-day-label">D{day.lead_day}</span>
             <div className="outlook-bar-track">
               <div
                 className={`outlook-bar-fill ${riskClass}`}
-                style={{ width: `${pct}%` }}
+                style={{ width: `${barWidth}%` }}
               />
             </div>
-            <span className="outlook-pct" style={{ color: `var(--${riskClass})` }}>
-              {pct}%
-            </span>
+            <span className={`outlook-pct ${riskClass}`}>{pct}%</span>
+            {isActive && <span className="outlook-active-chip">selected</span>}
           </div>
         )
       })}
+      <p className="outlook-note">
+        10-day forecast horizon
+      </p>
     </div>
   )
 }

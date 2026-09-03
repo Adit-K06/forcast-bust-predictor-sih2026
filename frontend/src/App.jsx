@@ -138,6 +138,8 @@ function App() {
         <main className="dashboard-main events-layout">
           <BustEventsPanel events={bustEvents} onEventClick={(e) => {
             setRegion(e.slug)
+            setForecastDate(e.date)
+            setLeadDay(e.lead_day)
             setActiveTab('forecast')
           }} />
         </main>
