@@ -1,7 +1,14 @@
 """
-Quick startup script — run this from the repo root to verify the backend boots correctly.
-Usage:  python start_backend.py
-        (or just: cd backend && uvicorn main:app --reload)
+Quick startup script — run this from the repo root to boot the AtmoTrust backend.
+
+Usage:
+    python start_backend.py
+
+Other useful commands:
+    python ml_core/baseline_and_skill_score.py   # regenerate skill score vs climatology
+    cd frontend && npm run dev                   # start the React dashboard
+
+API docs: http://127.0.0.1:8000/docs
 """
 import subprocess
 import sys

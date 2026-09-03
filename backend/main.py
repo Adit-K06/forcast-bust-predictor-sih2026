@@ -21,12 +21,18 @@ from pydantic import BaseModel, Field
 
 from model_utils import predict_real, real_model_available, get_evaluation_results
 
+import os as _os
+
 SKILL_SCORE_PATH = _Path(__file__).parent.parent / "ml_core" / "evaluation" / "skill_score_data.json"
 
 
-# ---------------------------------------------------------------------------
-# App
-# ---------------------------------------------------------------------------
+_raw_origins = _os.getenv("ALLOWED_ORIGINS", "*")
+_allowed_origins: list[str] = (
+    [o.strip() for o in _raw_origins.split(",") if o.strip()]
+    if _raw_origins != "*"
+    else ["*"]
+)
+
 app = FastAPI(
     title="AtmoTrust — Forecast Bust Detection API",
     description=(
@@ -39,15 +45,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
 
-
-# ---------------------------------------------------------------------------
-# Schemas
-# ---------------------------------------------------------------------------
 class ForecastConfidenceResponse(BaseModel):
     region: str
     date: date
@@ -77,10 +79,6 @@ class BustEvent(BaseModel):
     error_mm: Optional[float]
     lead_day: int
 
-
-# ---------------------------------------------------------------------------
-# Static data
-# ---------------------------------------------------------------------------
 KNOWN_REGIONS: dict[str, str] = {
     "coastal-karnataka":    "Coastal Karnataka",
     "konkan-goa":           "Konkan & Goa",
@@ -191,10 +189,6 @@ def _build_response(
         is_mock=is_mock,
     )
 
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 @app.get("/regions", response_model=list[RegionInfo])
 def get_regions():
     """List all supported IMD subdivisions."""
@@ -217,10 +211,7 @@ def get_forecast_confidence(
     forecast_date: date = Query(..., alias="date", description="Forecast issue date, YYYY-MM-DD"),
     lead_day: int = Query(..., ge=1, le=10, description="Lead day 1-10"),
 ):
-    """
-    Bust probability + confidence + plain-English SHAP explanation.
-    Executed via real trained RandomForest model & TreeExplainer across all regions and lead days.
-    """
+    
     slug = region.lower().strip()
     if slug not in KNOWN_REGIONS:
         raise HTTPException(
@@ -242,7 +233,6 @@ def get_forecast_confidence(
             is_mock=False,
         )
 
-    # Fallback safety
     base = 0.10 + (lead_day / 10) * 0.50
     bp = round(min(base, 0.85), 2)
     cl = _confidence_label_from_prob(bp)
