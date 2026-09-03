@@ -127,19 +127,22 @@ docker-compose up --build
 
 ---
 
-## 🎯 Demo Walkthrough Guide for Judges
+## 🖥️ Usage
 
-1. **Live Model Query:**
-   - Select **Coastal Karnataka**, Date: `2023-07-15`, Lead Day: `Day 1`.
-   - Result: Model displays 96% bust risk with SHAP explanations citing heavy precipitation forecast and high historical bust frequency.
-2. **10-Day Outlook Exploration:**
-   - Observe how confidence degrades progressively from Day 1 to Day 10 across the dynamic bar chart. Click any day to update the detailed panel.
-3. **Interactive Map Exploration:**
-   - Explore the color-coded Leaflet choropleth map (Green: Low risk, Amber: Moderate risk, Red: High bust probability). Hover and click states to inspect regional reliability.
-4. **Historical Forecast Busts Tab:**
-   - Click the **Historical Busts** tab to inspect documented real-world NWP forecast failures (e.g. Depression BOB 02) and drill into the regional analysis with one click.
-5. **Model Info & Transparency Tab:**
-   - View the **Model Info** tab showing WMO-standard evaluation metrics, Brier Skill Score comparisons, and live operational status.
+**Forecast Confidence Query**
+Select any IMD subdivision from the dropdown, set a forecast date and lead day (1–10), and the system returns a calibrated bust probability along with the top contributing factors driving the prediction.
+
+**10-Day Horizon**
+The outlook chart plots the bust risk trajectory across all 10 lead days for the selected region and date. Clicking any day updates the main panel to reflect that specific lead time.
+
+**Interactive Map**
+The Leaflet choropleth map displays a colour-coded spatial risk overview across supported subdivisions. Clicking a state on the map navigates to its regional forecast panel.
+
+**Historical Bust Events**
+The Historical Busts tab contains documented real-world NWP forecast failures with observed vs. forecast rainfall figures. Selecting any event navigates directly to the corresponding regional forecast for that date and lead time.
+
+**Model Transparency**
+The Model Info tab exposes the full evaluation report — including Brier Skill Score vs. climatology, ROC-AUC, PR-AUC, and training data scope.
 
 ---
 
