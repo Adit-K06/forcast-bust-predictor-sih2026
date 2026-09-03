@@ -1,17 +1,37 @@
-const API_BASE_URL = 'http://127.0.0.1:8000'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+
+async function apiFetch(path) {
+  const res = await fetch(`${API_BASE_URL}${path}`)
+  if (!res.ok) throw new Error(`API error ${res.status}: ${res.statusText}`)
+  return res.json()
+}
 
 export async function getForecastConfidence(region, date, leadDay) {
-  const params = new URLSearchParams({
-    region,
-    date,
-    lead_day: String(leadDay),
-  })
+  const params = new URLSearchParams({ region, date, lead_day: String(leadDay) })
+  return apiFetch(`/forecast-confidence?${params}`)
+}
 
-  const response = await fetch(`${API_BASE_URL}/forecast-confidence?${params.toString()}`)
+export async function get10DayOutlook(region, date) {
+  const params = new URLSearchParams({ region, date })
+  return apiFetch(`/10day-outlook?${params}`)
+}
 
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`)
-  }
+export async function getConfidenceMap(date, leadDay) {
+  return apiFetch(`/confidence-map/${date}?lead_day=${leadDay}`)
+}
 
-  return response.json()
+export async function getBustEvents() {
+  return apiFetch('/bust-events')
+}
+
+export async function getRegions() {
+  return apiFetch('/regions')
+}
+
+export async function getModelInfo() {
+  return apiFetch('/model-info')
+}
+
+export async function getSkillScore() {
+  return apiFetch('/skill-score')
 }

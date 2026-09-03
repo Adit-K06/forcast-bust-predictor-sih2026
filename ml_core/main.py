@@ -28,6 +28,13 @@ class BustModelTrainer:
     def preprocess(self, df):
         df = df.copy()
 
+        # Explicit leak-prevention: these columns either ARE the label, or
+        # were used to DEFINE the label (is_bust = abs_error_mm >= bust_threshold_mm).
+        # Including them lets the model just recover a threshold comparison
+        # instead of learning real signal — this was the bug causing 1.0 train AUC.
+        leak_cols = ["abs_error_mm", "signed_error_mm", "precip_observed_mm", "bust_threshold_mm"]
+        df = df.drop(columns=[c for c in leak_cols if c in df.columns])
+
         # Drop datetime columns
         for col in df.columns:
             if "date" in col.lower():
