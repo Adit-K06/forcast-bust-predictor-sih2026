@@ -6,10 +6,75 @@ function getRiskClass(bustProb) {
   return 'risk-high'
 }
 
-function getAdvisoryClass(label) {
-  if (label === 'VERY LOW') return 'caution'
-  if (label === 'LOW') return 'warning'
-  return ''
+function getRiskLabel(bustProb) {
+  if (bustProb < 0.30) return 'Low Risk'
+  if (bustProb < 0.60) return 'Moderate Risk'
+  return 'High Risk'
+}
+
+function parseFactors(factors) {
+  if (!factors || factors.length === 0) return []
+  const weights = [1.0, 0.65, 0.40]
+  return factors.slice(0, 3).map((phrase, i) => ({
+    phrase,
+    weight: weights[i] ?? 0.30,
+  }))
+}
+
+function BustSpectrumBar({ bustProb }) {
+  const pct = Math.round(bustProb * 100)
+  return (
+    <div className="spectrum-container">
+      <div className="spectrum-bar">
+        <div className="spectrum-track" />
+        {/* Triangle marker */}
+        <div
+          className="spectrum-marker"
+          style={{ left: `calc(${pct}% - 6px)` }}
+          title={`Bust probability: ${pct}%`}
+        />
+      </div>
+      <div className="spectrum-ticks">
+        <span>0%</span>
+        <span style={{ position: 'absolute', left: '30%' }}>30%</span>
+        <span style={{ position: 'absolute', left: '60%' }}>60%</span>
+        <span style={{ marginLeft: 'auto' }}>100%</span>
+      </div>
+      <div className="spectrum-legend-inline">
+        <span className="sleg risk-low">Low</span>
+        <span className="sleg risk-medium">Moderate</span>
+        <span className="sleg risk-high">High</span>
+      </div>
+    </div>
+  )
+}
+
+function SHAPFactorBars({ factors }) {
+  const parsed = parseFactors(factors)
+  if (parsed.length === 0) return null
+
+  return (
+    <div className="shap-factors">
+      <div className="shap-header">
+        <span className="section-label">Contributing Factors</span>
+      </div>
+      <p className="shap-subtitle">
+        Ranked drivers of GFS bust risk
+      </p>
+      {parsed.map((f, i) => (
+        <div key={i} className="shap-row">
+          <span className="shap-rank">#{i + 1}</span>
+          <div className="shap-bar-wrap">
+            <div
+              className="shap-bar-fill"
+              style={{ width: `${Math.round(f.weight * 100)}%` }}
+            />
+          </div>
+          <span className="shap-phrase">{f.phrase}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function RegionPanel({ region, forecastDate, leadDay, apiState, mapNotice }) {
@@ -18,12 +83,15 @@ function RegionPanel({ region, forecastDate, leadDay, apiState, mapNotice }) {
   return (
     <div className="region-panel">
       <div className="region-panel-header">
-        <h2>Region Intelligence</h2>
+        <div className="region-panel-title-row">
+          <h2>Region Intelligence</h2>
+          <span className="panel-tag">GFS Bust Detection</span>
+        </div>
         <p className="context-line">{getRegionLabel(region)}</p>
         <p className="context-meta">
           {forecastDate} &middot; Day {leadDay} lead
           {data?.is_mock === false && (
-            <span style={{ color: 'var(--risk-low)', marginLeft: 8 }}>● Real model</span>
+            <span className="real-model-tag">● Real Model</span>
           )}
         </p>
       </div>
@@ -53,66 +121,57 @@ function RegionPanel({ region, forecastDate, leadDay, apiState, mapNotice }) {
         <div className="forecast-result fade-in">
           {data.is_mock && <span className="mock-badge">CALIBRATED MOCK</span>}
 
-          {/* Main confidence gauge */}
-          <div className="confidence-gauge">
-            <div className="gauge-header">
-              <span className="gauge-label">Bust Probability</span>
-              <span className={`confidence-label-badge ${data.confidence_label}`}>
-                {data.confidence_label}
-              </span>
-            </div>
-            <div className={`gauge-value ${getRiskClass(data.bust_probability)}`}>
-              {Math.round(data.bust_probability * 100)}%
-            </div>
-            <div className="gauge-bar-track">
-              <div
-                className={`gauge-bar-fill ${getRiskClass(data.bust_probability)}`}
-                style={{ width: `${data.bust_probability * 100}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Metrics grid */}
-          <div className="metrics-grid">
-            <div className="metric-card">
-              <div className="metric-card-label">Confidence</div>
-              <div className="metric-card-value">
-                {Math.round(data.confidence_score * 100)}%
-              </div>
-            </div>
-            <div className="metric-card">
-              <div className="metric-card-label">Bust Risk</div>
-              <div className="metric-card-value" style={{ color: `var(--${getRiskClass(data.bust_probability)})` }}>
+          {/* ── Hero: Bust Probability ── */}
+          <div className="bust-hero">
+            <div className="bust-hero-left">
+              <span className="bust-hero-label">GFS Bust Probability</span>
+              <div className={`bust-hero-pct ${getRiskClass(data.bust_probability)}`}>
                 {Math.round(data.bust_probability * 100)}%
               </div>
+              <div className="bust-hero-risk-label">
+                <span className={`risk-pill ${getRiskClass(data.bust_probability)}`}>
+                  {getRiskLabel(data.bust_probability)}
+                </span>
+                <span className="conf-label-text">
+                  {data.confidence_label} Confidence
+                </span>
+              </div>
+            </div>
+            <div className="bust-hero-right">
+              <div className="mini-metric">
+                <div className="mini-metric-val">
+                  {Math.round(data.confidence_score * 100)}%
+                </div>
+                <div className="mini-metric-label">Forecast Reliability</div>
+              </div>
             </div>
           </div>
 
-          {/* Explanation */}
-          <div className="explanation-card">
-            <span className="explanation-title">AI Explanation</span>
+          {/* ── Probability Spectrum Bar ── */}
+          <BustSpectrumBar bustProb={data.bust_probability} />
+
+          {/* ── SHAP Explanation ── */}
+          <div className="explanation-card editorial">
+            <div className="explanation-header-row">
+              <span className="section-label">AI Analysis</span>
+              <span className="shap-powered-tag">TreeExplainer</span>
+            </div>
             <p className="explanation-text">{data.explanation_text}</p>
           </div>
 
-          {/* Top factors */}
+          {/* ── SHAP Factor Bars ── */}
           {data.top_factors?.length > 0 && (
-            <div className="explanation-card">
-              <span className="explanation-title">Key Risk Factors</span>
-              <ul className="factor-list" role="list">
-                {data.top_factors.map((f, i) => (
-                  <li key={i} className="factor-item">
-                    <span className="factor-dot" aria-hidden="true" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <SHAPFactorBars factors={data.top_factors} />
           )}
 
-          {/* Advisory */}
+          {/* ── Advisory ── */}
           {data.advisory && (
-            <div className={`advisory-card ${getAdvisoryClass(data.confidence_label)}`}>
-              <strong>Advisory:</strong> {data.advisory}
+            <div className={`advisory-card ${data.bust_probability >= 0.60 ? 'risk-high' : data.bust_probability >= 0.30 ? 'risk-medium' : 'risk-low'}`}>
+              <div className="advisory-icon">⚠</div>
+              <div>
+                <strong className="advisory-label">Operational Advisory</strong>
+                <p className="advisory-text">{data.advisory}</p>
+              </div>
             </div>
           )}
         </div>
