@@ -1,13 +1,34 @@
+# Python
 venv/
 .venv/
 __pycache__/
 *.py[cod]
-data-pipeline/output/
+*.pyo
+.env
+
+# Data files (large, tracked via Git LFS or excluded)
 *.grib
 *.idx
-*.parquet
-*.log
-.vscode/
+
+# Legacy pipeline scratch outputs
+data-pipeline/output/
 clean_corrupted.py
 fix_data.py
-.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+frontend/dist/
+
+# Logs
+*.log
+
+# NOTE: features/features.parquet and ml_core/model.joblib ARE intentionally
+# tracked in git — they are the core build artifacts for this submission.

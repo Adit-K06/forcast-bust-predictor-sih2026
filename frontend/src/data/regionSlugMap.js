@@ -11,7 +11,6 @@ export const STATE_TO_BACKEND_SLUG = {
   'Uttar Pradesh': 'gangetic-west-bengal',
   'Odisha': 'gangetic-west-bengal',
   'Gujarat': 'konkan-goa',
-  'Kerala': 'coastal-karnataka',
   'Andhra Pradesh': 'tamil-nadu',
 }
 
