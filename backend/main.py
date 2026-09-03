@@ -135,10 +135,10 @@ BUST_EVENTS: list[dict] = [
         "lead_day": 5,
     },
     {
-        "date": "2021-10-17",
+        "date": "2021-09-26",
         "region": "AP Coast",
         "slug": "tamil-nadu",
-        "event": "Cyclone Gulab - Track error 80 km at 48h lead",
+        "event": "Cyclone Gulab - GFS 48h track error near Kalingapatnam, rainfall bust",
         "observed_mm": 180.0,
         "forecast_mm": 60.0,
         "error_mm": 120.0,
