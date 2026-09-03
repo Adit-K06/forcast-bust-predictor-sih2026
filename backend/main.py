@@ -19,7 +19,10 @@ from fastapi import FastAPI, HTTPException, Query, Path
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from model_utils import predict_real, real_model_available, get_evaluation_results
+try:
+    from backend.model_utils import predict_real, real_model_available, get_evaluation_results
+except ImportError:
+    from model_utils import predict_real, real_model_available, get_evaluation_results
 
 import os as _os
 
