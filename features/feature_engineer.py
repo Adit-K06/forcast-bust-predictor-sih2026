@@ -26,7 +26,10 @@ class FeatureEngineer:
         self.climatology_window_years = climatology_window_years
         self._climatology_cache = {}
         self._analogue_model = None
-        self._analogue_train_df = None
+        self._analogue_scaler = None
+        self._analogue_y = None
+        self._hist_bust_rates = None
+        self._hist_bust_rates_overall = None
 
 
 
@@ -90,8 +93,15 @@ class FeatureEngineer:
 
     def _add_historical_bust_rate(self, df: pd.DataFrame) -> pd.DataFrame:
         if "is_bust" not in df.columns:
-            df["hist_bust_rate"] = np.nan
-            df["hist_bust_rate_overall"] = np.nan
+            if self._hist_bust_rates is not None:
+                df = df.merge(self._hist_bust_rates, on=["region", "season", "lead_day"], how="left")
+            else:
+                df["hist_bust_rate"] = np.nan
+
+            if self._hist_bust_rates_overall is not None:
+                df = df.merge(self._hist_bust_rates_overall, on=["region", "season"], how="left")
+            else:
+                df["hist_bust_rate_overall"] = np.nan
             return df
 
         bust_rates = (
@@ -100,6 +110,7 @@ class FeatureEngineer:
             .reset_index()
             .rename(columns={"is_bust": "hist_bust_rate"})
         )
+        self._hist_bust_rates = bust_rates
         df = df.merge(bust_rates, on=["region", "season", "lead_day"], how="left")
 
         overall_rates = (
@@ -108,6 +119,7 @@ class FeatureEngineer:
             .reset_index()
             .rename(columns={"is_bust": "hist_bust_rate_overall"})
         )
+        self._hist_bust_rates_overall = overall_rates
         df = df.merge(overall_rates, on=["region", "season"], how="left")
         return df
 
@@ -134,11 +146,16 @@ class FeatureEngineer:
         return df
 
     def _add_forecast_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        if "precip_forecast_mm" in df.columns:
-            df["log_precip_forecast"] = np.log1p(df["precip_forecast_mm"])
+        col = None
+        for candidate in ["precip_forecast_mm", "forecast_value", "precip_forecast"]:
+            if candidate in df.columns:
+                col = candidate
+                break
+        if col:
+            df["log_precip_forecast"] = np.log1p(np.maximum(0, df[col].fillna(0)))
             bins = [0, 2.5, 7.5, 35.5, 64.5, np.inf]
             df["precip_intensity_cat"] = pd.cut(
-                df["precip_forecast_mm"], bins=bins, labels=[0, 1, 2, 3, 4]
+                df[col], bins=bins, labels=[0, 1, 2, 3, 4], include_lowest=True
             ).astype(float)
         return df
 
@@ -208,12 +225,29 @@ class FeatureEngineer:
         return df
 
     def _add_anomaly_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        if "month" not in df.columns and "init_date" in df.columns:
+            df["month"] = pd.to_datetime(df["init_date"]).dt.month
+
         for var in ["pwat_value", "wind_speed_850", "pressure_gradient"]:
             if var not in df.columns:
                 continue
-            clim_mean = df.groupby(["region", "month"])[var].transform("mean")
-            clim_std = df.groupby(["region", "month"])[var].transform("std")
-            df[f"{var}_anomaly"] = (df[var] - clim_mean) / (clim_std + 1e-6)
+
+            # Cache climatology stats per region and month
+            if var not in self._climatology_cache or df[var].notnull().sum() > 50:
+                stats = df.groupby(["region", "month"])[var].agg(["mean", "std"]).reset_index()
+                stats = stats.rename(columns={"mean": f"{var}_clim_mean", "std": f"{var}_clim_std"})
+                self._climatology_cache[var] = stats
+
+            stats = self._climatology_cache.get(var)
+            if stats is not None and not stats.empty:
+                merged = df.merge(stats, on=["region", "month"], how="left")
+                mean_val = merged[f"{var}_clim_mean"]
+                std_val = merged[f"{var}_clim_std"].fillna(1.0)
+                df[f"{var}_anomaly"] = (df[var] - mean_val) / (std_val + 1e-6)
+            else:
+                clim_mean = df.groupby(["region", "month"])[var].transform("mean")
+                clim_std = df.groupby(["region", "month"])[var].transform("std")
+                df[f"{var}_anomaly"] = (df[var] - clim_mean) / (clim_std + 1e-6)
 
         return df
 
@@ -222,8 +256,25 @@ class FeatureEngineer:
                               "month_sin", "month_cos"]
         available = [f for f in analogue_features if f in df.columns]
 
-        if len(available) < 3 or "is_bust" not in df.columns:
+        if len(available) < 3:
             df["analogue_bust_rate"] = np.nan
+            return df
+
+        if "is_bust" not in df.columns:
+            # Inference mode using fitted analogue model
+            if self._analogue_model is not None and self._analogue_scaler is not None:
+                mask = df[available].notnull().all(axis=1)
+                analogue_rates = np.full(len(df), np.nan)
+                if mask.sum() > 0:
+                    X_sub = df.loc[mask, available].fillna(0).values
+                    X_scaled = self._analogue_scaler.transform(X_sub)
+                    _, indices = self._analogue_model.kneighbors(X_scaled)
+                    analogue_rates[np.where(mask)[0]] = [
+                        self._analogue_y[neighbor_idx].mean() for neighbor_idx in indices
+                    ]
+                df["analogue_bust_rate"] = analogue_rates
+            else:
+                df["analogue_bust_rate"] = np.nan
             return df
 
         mask = df[available].notnull().all(axis=1)
@@ -243,6 +294,11 @@ class FeatureEngineer:
         k = min(10, mask.sum() - 1)
         knn = NearestNeighbors(n_neighbors=k + 1, metric="euclidean")
         knn.fit(X_scaled)
+
+        # Cache fitted components for downstream inference
+        self._analogue_model = knn
+        self._analogue_scaler = scaler
+        self._analogue_y = y_sub
 
         masked_positions = np.where(mask)[0]
         analogue_rates = np.full(len(df), np.nan)

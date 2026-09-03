@@ -7,7 +7,13 @@ function ForecastControls({
   onLeadDayChange,
   region,
   onRegionChange,
+  regions = [],
 }) {
+  // Use API regions if available, fall back to static list
+  const displayRegions = regions.length > 0
+    ? regions.map(r => ({ slug: r.slug, label: r.label }))
+    : BACKEND_REGIONS
+
   return (
     <section className="controls-bar" aria-label="Forecast controls">
       <div className="control-group">
@@ -16,7 +22,9 @@ function ForecastControls({
           id="forecast-date"
           type="date"
           value={forecastDate}
-          onChange={(e) => onForecastDateChange(e.target.value)}
+          min="2023-06-01"
+          max="2023-09-30"
+          onChange={e => onForecastDateChange(e.target.value)}
         />
       </div>
 
@@ -25,7 +33,7 @@ function ForecastControls({
           Lead Day <span className="lead-day-value">Day {leadDay}</span>
         </label>
         <div className="slider-track">
-          <span className="slider-endpoint">Day 1</span>
+          <span className="slider-endpoint">D1</span>
           <input
             id="lead-day"
             type="range"
@@ -33,13 +41,13 @@ function ForecastControls({
             max="10"
             step="1"
             value={leadDay}
-            onChange={(e) => onLeadDayChange(Number(e.target.value))}
+            onChange={e => onLeadDayChange(Number(e.target.value))}
             aria-valuemin={1}
             aria-valuemax={10}
             aria-valuenow={leadDay}
             aria-label={`Lead day, currently Day ${leadDay}`}
           />
-          <span className="slider-endpoint">Day 10</span>
+          <span className="slider-endpoint">D10</span>
         </div>
       </div>
 
@@ -48,12 +56,10 @@ function ForecastControls({
         <select
           id="region-select"
           value={region}
-          onChange={(e) => onRegionChange(e.target.value)}
+          onChange={e => onRegionChange(e.target.value)}
         >
-          {BACKEND_REGIONS.map(({ slug, label }) => (
-            <option key={slug} value={slug}>
-              {label}
-            </option>
+          {displayRegions.map(({ slug, label }) => (
+            <option key={slug} value={slug}>{label}</option>
           ))}
         </select>
       </div>
