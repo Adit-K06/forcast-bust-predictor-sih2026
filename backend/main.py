@@ -105,23 +105,23 @@ BUST_EVENTS: list[dict] = [
         "lead_day": 3,
     },
     {
-        "date": "2022-09-14",
-        "region": "Kerala",
-        "slug": "coastal-karnataka",
-        "event": "Active monsoon surge - Idukki extreme event (320 mm/24h)",
-        "observed_mm": 320.0,
-        "forecast_mm": 90.0,
-        "error_mm": 230.0,
+        "date": "2023-07-18",
+        "region": "Konkan & Goa",
+        "slug": "konkan-goa",
+        "event": "Monsoon surge - GFS significantly underestimated offshore low interaction",
+        "observed_mm": 285.0,
+        "forecast_mm": 60.0,
+        "error_mm": 225.0,
         "lead_day": 2,
     },
     {
-        "date": "2023-05-22",
-        "region": "Uttarakhand",
-        "slug": "west-rajasthan",
-        "event": "Western Disturbance missed by GFS (150 mm event)",
-        "observed_mm": 150.0,
-        "forecast_mm": 15.0,
-        "error_mm": 135.0,
+        "date": "2023-06-30",
+        "region": "Maharashtra",
+        "slug": "maharashtra",
+        "event": "Western Disturbance interaction - GFS missed orographic enhancement",
+        "observed_mm": 160.0,
+        "forecast_mm": 18.0,
+        "error_mm": 142.0,
         "lead_day": 4,
     },
     {
@@ -155,6 +155,7 @@ BUST_EVENTS: list[dict] = [
         "lead_day": 3,
     },
 ]
+
 
 
 def _confidence_label_from_prob(bust_prob: float) -> str:
