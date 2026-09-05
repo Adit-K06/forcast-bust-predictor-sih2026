@@ -22,12 +22,13 @@ import pandas as pd
 from sklearn.metrics import brier_score_loss, roc_auc_score, average_precision_score
 
 # ── repo root on PYTHONPATH so we can import ml_core ──────────────────────────
-REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # one level up from ml_core/
 sys.path.insert(0, REPO_ROOT)
 
 from ml_core.main import BustModelTrainer
 
 # ── config ────────────────────────────────────────────────────────────────────
+# Fix E: corrected paths to match actual repo layout
 FEATURES_PATH = os.path.join(REPO_ROOT, "features", "features.parquet")
 MODEL_PATH    = os.path.join(REPO_ROOT, "ml_core", "model.joblib")
 OUTPUT_DIR    = os.path.join(REPO_ROOT, "ml_core", "evaluation")
@@ -169,11 +170,14 @@ def main():
 
 ## Interpretation
 
-The AtmoTrust RandomForest model demonstrates statistically significant improvement
+The AtmoTrust RandomForest model demonstrates measurable improvement
 over the climatological baseline across all metrics. The positive BSS confirms that
 the model captures real predictive signal beyond historical mean bust rates,
 particularly useful for identifying high-risk synoptic situations (monsoon lows,
 western disturbances, extreme precipitation events).
+
+Note: no formal statistical significance test (e.g. Diebold-Mariano) has been run.
+The improvement is empirical on the test split described above.
 """
 
     with open(os.path.join(OUTPUT_DIR, "skill_score_report.md"), "w") as f:

@@ -22,52 +22,64 @@ FEATURES_PATH = _REPO_ROOT / "features" / "features.parquet"
 
 # Regional mapping to training region names and numeric category codes:
 # Training category codes: {"Coastal Karnataka": 0, "Maharashtra": 1, "Tamil Nadu": 2}
+# Regions with 'trained': True were used in actual model training (Jun-Sep 2023).
+# Regions with 'trained': False use representative demographic parameters for demo inference.
+# The 'code' value is the integer category code the training data assigned to each region.
 REGION_INFO = {
     "coastal-karnataka": {
         "name": "Coastal Karnataka",
         "code": 0,
+        "trained": True,
         "base_hist_bust": 0.190,
         "base_forecast_mm": 24.5,
-    },
-    "konkan-goa": {
-        "name": "Konkan & Goa",
-        "code": 1,
-        "base_hist_bust": 0.185,
-        "base_forecast_mm": 22.0,
-    },
-    "vidarbha": {
-        "name": "Vidarbha",
-        "code": 1,
-        "base_hist_bust": 0.165,
-        "base_forecast_mm": 12.5,
     },
     "maharashtra": {
         "name": "Maharashtra",
         "code": 1,
+        "trained": True,
         "base_hist_bust": 0.165,
         "base_forecast_mm": 14.0,
     },
     "tamil-nadu": {
         "name": "Tamil Nadu",
         "code": 2,
+        "trained": True,
         "base_hist_bust": 0.168,
         "base_forecast_mm": 8.5,
+    },
+    # --- DEMO regions below: not in training data, use representative parameters ---
+    "konkan-goa": {
+        "name": "Konkan & Goa",
+        "code": 1,   # nearest trained region code
+        "trained": False,
+        "base_hist_bust": 0.185,
+        "base_forecast_mm": 22.0,
+    },
+    "vidarbha": {
+        "name": "Vidarbha",
+        "code": 1,
+        "trained": False,
+        "base_hist_bust": 0.165,
+        "base_forecast_mm": 12.5,
     },
     "gangetic-west-bengal": {
         "name": "Gangetic West Bengal",
         "code": 1,
+        "trained": False,
         "base_hist_bust": 0.175,
         "base_forecast_mm": 16.0,
     },
     "west-rajasthan": {
         "name": "West Rajasthan",
         "code": 0,
+        "trained": False,
         "base_hist_bust": 0.130,
         "base_forecast_mm": 4.5,
     },
     "all-india": {
         "name": "All India",
         "code": 1,
+        "trained": False,
         "base_hist_bust": 0.170,
         "base_forecast_mm": 15.0,
     },
@@ -84,11 +96,12 @@ FEATURE_COLUMNS = [
     "hist_bust_rate",
 ]
 
+# Must match FEATURE_COLUMNS exactly — used to label SHAP values for the UI.
 EXPLAIN_FEATURE_NAMES = [
     "region",
     "lead_day",
     "season",
-    "precip_forecast_mm",
+    "forecast_value",   # Fix C: was incorrectly 'precip_forecast_mm'
     "month_sin",
     "month_cos",
     "precip_intensity_cat",
@@ -154,19 +167,23 @@ def get_evaluation_results() -> Optional[dict]:
 
 
 def _get_precip_cat(forecast_val: float) -> int:
-    if forecast_val < 2.5:
-        return 0
-    elif forecast_val < 15.6:
-        return 1
-    elif forecast_val < 64.5:
-        return 2
-    return 3
+    """Map forecast precipitation to intensity category.
+    Bins MUST match feature_engineer.py exactly: [0, 2.5, 7.5, 35.5, 64.5, inf] -> 0,1,2,3,4.
+    Fix A: previous inference used different thresholds causing train/serve mismatch.
+    """
+    if forecast_val < 2.5:   return 0   # Trace/No rain
+    elif forecast_val < 7.5:  return 1   # Light
+    elif forecast_val < 35.5: return 2   # Moderate
+    elif forecast_val < 64.5: return 3   # Heavy
+    return 4                              # Extremely Heavy
 
 
 def predict_real(region_slug: str, forecast_date: date, lead_day: int):
     """
-    Executes real inference using the trained RandomForestClassifier and SHAP TreeExplainer.
-    Supports ALL regions and lead days 1-10.
+    Executes inference using the trained RandomForestClassifier and SHAP TreeExplainer.
+    Model is trained on: Coastal Karnataka, Maharashtra, Tamil Nadu (Day 1, Jun-Sep 2023).
+    Other regions use representative parameters — inference is DEMO mode for those.
+    All lead days use the same Day-1 trained model; Days 2-10 are extrapolated estimates.
     """
     model = _try_load_model()
     if model is None:
@@ -187,10 +204,12 @@ def predict_real(region_slug: str, forecast_date: date, lead_day: int):
     month_sin = float(np.sin(2 * np.pi * month / 12))
     month_cos = float(np.cos(2 * np.pi * month / 12))
 
-    # Lead day uncertainty scaling: historical error rate grows naturally with lead time
+    # Lead day uncertainty scaling: bust rate grows with lead time (extrapolation from Day-1 training)
+    # NOTE: model was trained on Day 1 only; this is an engineered extrapolation for Days 2-10.
     hist_bust_rate = float(min(0.85, base_bust + (lead_day - 1) * 0.022))
 
-    # Forecast precipitation with realistic day-to-day synoptic modulation
+    # Deterministic synoptic modulation — produces repeatable, region/date-specific values
+    # NOTE: this is a demo-mode feature proxy; in production, real GFS forecast values are used.
     synoptic_seed = (day * 7 + month * 13 + lead_day * 3) % 20
     forecast_value = float(max(0.5, round(base_precip + (synoptic_seed - 10) * 1.5, 1)))
     precip_cat = _get_precip_cat(forecast_value)

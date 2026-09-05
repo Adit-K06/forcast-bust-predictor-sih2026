@@ -39,9 +39,10 @@ _allowed_origins: list[str] = (
 app = FastAPI(
     title="AtmoTrust — Forecast Bust Detection API",
     description=(
-        "Serves region-wise forecast-bust probability (Day 1-10), confidence scores, "
+        "Serves region-wise forecast-bust probability, confidence scores, "
         "SHAP-based plain-English explanations, and historical bust-event data. "
-        "Powered by trained RandomForestClassifier & SHAP TreeExplainer across all IMD regions."
+        "Trained on GFS/ERA5 data for Coastal Karnataka, Maharashtra, and Tamil Nadu "
+        "(Day 1, June–September 2023). Other regions and lead days use demo-mode inference."
     ),
     version="1.0.0",
 )
@@ -277,7 +278,7 @@ def get_10day_outlook(
                 "bust_probability": round(bp, 3),
                 "confidence_score": round(1.0 - bp, 3),
                 "confidence_label": _confidence_label_from_prob(bp),
-                "is_mock": False,
+                "is_mock": True,  # Fix B: fallback is DEMO data, not real model output
             })
 
     return {"region": slug, "region_label": KNOWN_REGIONS[slug], "date": str(forecast_date), "outlook": days}
@@ -314,7 +315,7 @@ def get_confidence_map(
                 "bust_probability": round(bp, 3),
                 "confidence_score": round(1.0 - bp, 3),
                 "confidence_label": _confidence_label_from_prob(bp),
-                "is_mock": False,
+                "is_mock": True,  # Fix B: fallback is DEMO data, not real model output
             })
 
     return {"date": str(d), "lead_day": lead_day, "regions": results}
@@ -327,6 +328,7 @@ def health_check():
 
 @app.get("/model-info")
 def get_model_info():
+    import joblib
     skill_data = None
     if SKILL_SCORE_PATH.exists():
         try:
@@ -334,21 +336,44 @@ def get_model_info():
                 skill_data = _json.load(f)
         except Exception:
             pass
+
+    # Read actual hyperparameters from the loaded artifact rather than hardcoding
+    n_estimators = None
+    try:
+        from model_utils import MODEL_PATH
+        if MODEL_PATH.exists():
+            m = joblib.load(MODEL_PATH)
+            n_estimators = m.n_estimators
+    except Exception:
+        pass
+
     return {
         "real_model_loaded": real_model_available(),
         "model_type": "RandomForestClassifier (scikit-learn)",
+        "n_estimators": n_estimators,
         "training_data": {
-            "regions": ["Coastal Karnataka", "Maharashtra", "Tamil Nadu"],
-            "period": "June-September 2023 (active monsoon season)",
+            # Fix G: Only the 3 genuinely trained regions are listed here
+            "regions_trained": ["Coastal Karnataka", "Maharashtra", "Tamil Nadu"],
+            "regions_demo": [
+                "Konkan & Goa", "Vidarbha", "Gangetic West Bengal",
+                "West Rajasthan", "All India"
+            ],
+            "period": "June–September 2023 (active monsoon season)",
             "samples": 6013136,
-            "lead_day_coverage": "Full 1-10 day operational inference with SHAP TreeExplainer",
+            # Fix G: Only Day 1 is trained; Days 2-10 are extrapolated
+            "lead_day_validated": "Day 1",
+            "lead_day_extrapolated": "Days 2–10 (same Day-1 model, lead-scaled hist_bust_rate)",
         },
         "evaluation": get_evaluation_results(),
         "skill_scores": skill_data,
+        # Fix G: removed false 'all IMD subdivisions' and 'calibrated' claims
         "coverage_note": (
-            "Model active across all supported IMD subdivisions for lead days 1-10 "
-            "with real-time SHAP explainability. "
-            "Brier Skill Score vs climatological baseline: 0.817 (test set, 901,971 samples)."
+            "Model trained and validated on Day-1 GFS forecasts for Coastal Karnataka, "
+            "Maharashtra, and Tamil Nadu (June–September 2023). "
+            "All other regions and lead days 2–10 use demo-mode inference with "
+            "representative parameters — not independently trained or validated. "
+            "Bust probabilities are not calibrated (Random Forest predict_proba). "
+            "BSS vs climatological baseline is reported in skill_scores above."
         ),
     }
 

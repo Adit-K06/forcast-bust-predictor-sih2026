@@ -92,35 +92,67 @@ class FeatureEngineer:
         return df
 
     def _add_historical_bust_rate(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Computes a leakage-safe historical bust rate using a chronological expanding window.
+
+        Fix F: The previous implementation used groupby([region,season,lead_day]).mean()
+        over the ENTIRE dataset, which contaminated every row with test-set labels.
+
+        This implementation uses shift(1).expanding().mean() within each group,
+        sorted by init_date. For row t, hist_bust_rate(t) = mean(is_bust for all
+        rows in the same group with init_date < t). The current row's label is
+        NEVER included (shift ensures this). Rows with no prior history are filled
+        with the global training bust rate (a non-leaky prior).
+        """
         if "is_bust" not in df.columns:
+            # Inference mode: use pre-computed rates saved from training
             if self._hist_bust_rates is not None:
                 df = df.merge(self._hist_bust_rates, on=["region", "season", "lead_day"], how="left")
             else:
-                df["hist_bust_rate"] = np.nan
-
+                df["hist_bust_rate"] = 0.10  # global prior fallback
             if self._hist_bust_rates_overall is not None:
                 df = df.merge(self._hist_bust_rates_overall, on=["region", "season"], how="left")
             else:
-                df["hist_bust_rate_overall"] = np.nan
+                df["hist_bust_rate_overall"] = 0.10
             return df
 
-        bust_rates = (
-            df.groupby(["region", "season", "lead_day"])["is_bust"]
-            .mean()
-            .reset_index()
-            .rename(columns={"is_bust": "hist_bust_rate"})
-        )
-        self._hist_bust_rates = bust_rates
-        df = df.merge(bust_rates, on=["region", "season", "lead_day"], how="left")
+        # Training mode: expanding window, leakage-safe
+        global_prior = float(df["is_bust"].mean())
+        df = df.sort_values(["region", "season", "lead_day", "init_date"]).reset_index(drop=True)
 
-        overall_rates = (
-            df.groupby(["region", "season"])["is_bust"]
-            .mean()
+        def expanding_bust_rate(group):
+            # shift(1): exclude the current row's own label from its historical rate
+            group["hist_bust_rate"] = (
+                group["is_bust"].shift(1).expanding(min_periods=1).mean()
+            )
+            return group
+
+        df = df.groupby(["region", "season", "lead_day"], group_keys=False).apply(expanding_bust_rate)
+        # Rows with no history (first date in a group) get the global prior
+        df["hist_bust_rate"] = df["hist_bust_rate"].fillna(global_prior)
+
+        # Save terminal rates per group for use at inference time (leakage-safe)
+        self._hist_bust_rates = (
+            df.groupby(["region", "season", "lead_day"])["hist_bust_rate"]
+            .last()
             .reset_index()
-            .rename(columns={"is_bust": "hist_bust_rate_overall"})
         )
-        self._hist_bust_rates_overall = overall_rates
-        df = df.merge(overall_rates, on=["region", "season"], how="left")
+
+        # Overall rate (region x season) using same expanding logic
+        def expanding_overall(group):
+            group["hist_bust_rate_overall"] = (
+                group["is_bust"].shift(1).expanding(min_periods=1).mean()
+            )
+            return group
+
+        df = df.groupby(["region", "season"], group_keys=False).apply(expanding_overall)
+        df["hist_bust_rate_overall"] = df["hist_bust_rate_overall"].fillna(global_prior)
+
+        self._hist_bust_rates_overall = (
+            df.groupby(["region", "season"])["hist_bust_rate_overall"]
+            .last()
+            .reset_index()
+        )
         return df
 
     def _add_rolling_error_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -172,7 +204,7 @@ class FeatureEngineer:
                 "region": region_key,
                 "init_date": date,
                 "pressure_gradient": np.nan,
-                "wind_shear_850": np.nan,
+                "wind_speed_850_proxy": np.nan,  # Fix H: renamed from wind_shear_850
                 "wind_speed_850": np.nan,
                 "pwat_value": np.nan,
                 "has_depression_proxy": 0,
@@ -208,7 +240,9 @@ class FeatureEngineer:
                     "init_date": date,
                     "pressure_gradient": self._compute_gradient_magnitude(subset, "prmsl", lat_dim, lon_dim),
                     "wind_speed_850": self._compute_wind_speed(subset, lat_dim, lon_dim),
-                    "wind_shear_850": self._compute_wind_shear(subset, lat_dim, lon_dim),
+                    # Fix H: renamed from wind_shear_850; true vertical shear not computable
+                    # from single-level GFS files. This is wind speed at 850 hPa only.
+                    "wind_speed_850_proxy": self._compute_wind_shear(subset, lat_dim, lon_dim),
                     "pwat_value": float(subset.get("pwat", subset.get("tcwv", xr.DataArray(np.nan))).mean()),
                     "has_depression_proxy": int(self._detect_depression_proxy(subset, lat_dim, lon_dim)),
                     "has_wd_proxy": int(self._detect_wd_proxy(ds_ld, lat_dim, lon_dim)),
@@ -358,6 +392,12 @@ class FeatureEngineer:
 
     @staticmethod
     def _compute_wind_shear(ds: xr.Dataset, lat_dim: str, lon_dim: str) -> float:
+        """
+        Fix H: True vertical wind shear requires wind at two pressure levels (e.g. 850 and 200 hPa).
+        The current GFS files contain only a single level, so this cannot be computed.
+        This method returns the same value as _compute_wind_speed, and the stored feature
+        has been renamed 'wind_speed_850_proxy' to avoid mislabeling it as true shear.
+        """
         return FeatureEngineer._compute_wind_speed(ds, lat_dim, lon_dim)
 
     @staticmethod
