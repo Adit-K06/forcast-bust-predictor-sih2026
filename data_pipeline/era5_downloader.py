@@ -46,10 +46,11 @@ class ERA5Downloader:
 
         logger.info(f"Requesting ERA5: {year}-{month:02d}")
 
+        # Use "M" (month-end) for pandas <2.2 compatibility; "ME" requires 2.2+
         days_in_month = pd.date_range(
             f"{year}-{month:02d}-01",
             periods=1,
-            freq="ME"
+            freq="M"
         )[0].day
         days = [f"{d:02d}" for d in range(1, days_in_month + 1)]
 
