@@ -59,24 +59,70 @@ class ERA5Downloader:
             pl_path = self._download_pressure_level(year, month, days)
 
             if sl_path and pl_path:
-                ds_sl = xr.open_dataset(sl_path)
-                ds_pl = xr.open_dataset(pl_path)
-                merged = xr.merge([ds_sl, ds_pl])
-
-                if "tp" in merged:
-                    merged["tp"] = merged["tp"] * 1000
-                    merged["tp"].attrs["units"] = "mm"
-                    merged = merged.rename({"tp": "precipitation_mm"})
-
-                merged.to_netcdf(out_path)
-                sl_path.unlink(missing_ok=True)
-                pl_path.unlink(missing_ok=True)
-                logger.success(f"Saved ERA5: {out_path}")
-                return out_path
+                merged = self._merge_sl_pl(sl_path, pl_path, out_path)
+                if merged:
+                    return out_path
 
         except Exception as e:
             logger.error(f"ERA5 download failed for {year}-{month:02d}: {e}")
             return None
+
+    @staticmethod
+    def _unzip_if_needed(path: Path) -> Path:
+        """CDS API v2 returns ZIP archives even when format=netcdf is requested.
+        If the file is a ZIP, extract the first .nc inside and return that path.
+        """
+        import zipfile
+        if zipfile.is_zipfile(path):
+            extract_dir = path.parent / (path.stem + "_extracted")
+            extract_dir.mkdir(exist_ok=True)
+            with zipfile.ZipFile(path, "r") as zf:
+                nc_names = [n for n in zf.namelist() if n.endswith(".nc")]
+                if not nc_names:
+                    raise RuntimeError(f"No .nc file found inside ZIP: {path}")
+                zf.extract(nc_names[0], extract_dir)
+                nc_path = extract_dir / nc_names[0]
+            path.unlink()
+            nc_path.rename(path)
+            logger.debug(f"Extracted ZIP to {path}")
+        return path
+
+    def _merge_sl_pl(self, sl_path: Path, pl_path: Path, out_path: Path) -> bool:
+        """Merge single-level and pressure-level temp files into one final NetCDF.
+        CDS API v2 may return ZIP-wrapped NetCDF files — these are extracted first.
+        """
+        try:
+            sl_path = self._unzip_if_needed(sl_path)
+            pl_path = self._unzip_if_needed(pl_path)
+
+            for engine in ["netcdf4", "h5netcdf", "scipy"]:
+                try:
+                    ds_sl = xr.open_dataset(sl_path, engine=engine)
+                    ds_pl = xr.open_dataset(pl_path, engine=engine)
+                    break
+                except Exception:
+                    continue
+            else:
+                raise RuntimeError("Could not open ERA5 temp files with any available engine")
+
+            merged = xr.merge([ds_sl, ds_pl], compat="override")
+
+            # Unit conversion: ERA5 tp is in metres, convert to mm
+            if "tp" in merged:
+                merged["tp"] = merged["tp"] * 1000.0
+                merged["tp"].attrs["units"] = "mm"
+                merged["tp"].attrs["long_name"] = "Total precipitation"
+                merged = merged.rename({"tp": "precipitation_mm"})
+
+            merged.to_netcdf(out_path)
+            ds_sl.close(); ds_pl.close()
+            sl_path.unlink(missing_ok=True)
+            pl_path.unlink(missing_ok=True)
+            logger.success(f"Saved ERA5: {out_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Merge failed for {out_path.name}: {e}")
+            return False
 
     def _download_single_level(
         self, year: int, month: int, days: list[str]
