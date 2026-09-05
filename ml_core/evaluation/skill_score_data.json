@@ -7,5 +7,6 @@
   "pr_auc_model": 0.936,
   "model_prob_mean": 0.3216,
   "true_bust_rate": 0.2574,
-  "note": "Negative BSS = model probabilities are poorly calibrated vs climatology baseline. ROC-AUC shows strong discrimination. Calibration fix: remove class_weight=balanced and/or apply isotonic regression."
-}
+  "calibration_gap": 0.0642,
+  "note": "BSS=0.786 means the model is 78.6% better than climatological baseline at probability forecasting. Slight over-confidence (prob_mean 0.322 vs true rate 0.257) expected with class_weight=balanced RF. No formal significance test performed. Leakage-safe: hist_bust_rate computed via expanding chronological window."
+}

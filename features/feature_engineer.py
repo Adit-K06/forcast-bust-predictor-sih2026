@@ -92,18 +92,6 @@ class FeatureEngineer:
         return df
 
     def _add_historical_bust_rate(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Computes a leakage-safe historical bust rate using a chronological expanding window.
-
-        Fix F: The previous implementation used groupby([region,season,lead_day]).mean()
-        over the ENTIRE dataset, which contaminated every row with test-set labels.
-
-        This implementation uses shift(1).expanding().mean() within each group,
-        sorted by init_date. For row t, hist_bust_rate(t) = mean(is_bust for all
-        rows in the same group with init_date < t). The current row's label is
-        NEVER included (shift ensures this). Rows with no prior history are filled
-        with the global training bust rate (a non-leaky prior).
-        """
         if "is_bust" not in df.columns:
             # Inference mode: use pre-computed rates saved from training
             if self._hist_bust_rates is not None:
