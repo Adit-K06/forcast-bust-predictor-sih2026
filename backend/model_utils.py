@@ -153,6 +153,14 @@ def _load_features() -> Optional[pd.DataFrame]:
 def real_model_available() -> bool:
     return _try_load_model() is not None
 
+def is_demo_mode(region_slug: str, lead_day: int) -> bool:
+    r_info = REGION_INFO.get(region_slug)
+    if not r_info or not r_info.get("trained"):
+        return True
+    if lead_day != 1:
+        return True
+    return False
+
 
 def get_evaluation_results() -> Optional[dict]:
     if not EVAL_RESULTS_PATH.exists():

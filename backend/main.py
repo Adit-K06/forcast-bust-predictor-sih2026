@@ -20,9 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 try:
-    from backend.model_utils import predict_real, real_model_available, get_evaluation_results
+    from backend.model_utils import predict_real, real_model_available, get_evaluation_results, is_demo_mode, _try_load_model
 except ImportError:
-    from model_utils import predict_real, real_model_available, get_evaluation_results
+    from model_utils import predict_real, real_model_available, get_evaluation_results, is_demo_mode, _try_load_model
 
 import os as _os
 
@@ -235,7 +235,7 @@ def get_forecast_confidence(
             explanation=real_explanation.get("summary", ""),
             advisory=real_explanation.get("advisory", ""),
             factors=[f["phrase"] for f in real_explanation.get("top_factors", [])],
-            is_mock=False,
+            is_mock=is_demo_mode(slug, lead_day),
         )
 
     base = 0.10 + (lead_day / 10) * 0.50
@@ -269,7 +269,7 @@ def get_10day_outlook(
                 "bust_probability": round(real_proba, 3),
                 "confidence_score": round(1.0 - real_proba, 3),
                 "confidence_label": real_explanation.get("confidence_label", _confidence_label_from_prob(real_proba)),
-                "is_mock": False,
+                "is_mock": is_demo_mode(slug, ld),
             })
         else:
             bp = round(0.10 + (ld / 10) * 0.50, 2)
@@ -305,7 +305,7 @@ def get_confidence_map(
                 "bust_probability": round(real_proba, 3),
                 "confidence_score": round(1.0 - real_proba, 3),
                 "confidence_label": real_explanation.get("confidence_label", _confidence_label_from_prob(real_proba)),
-                "is_mock": False,
+                "is_mock": is_demo_mode(slug, lead_day),
             })
         else:
             bp = round(0.15 + (lead_day / 10) * 0.45, 2)
@@ -340,9 +340,8 @@ def get_model_info():
     # Read actual hyperparameters from the loaded artifact rather than hardcoding
     n_estimators = None
     try:
-        from model_utils import MODEL_PATH
-        if MODEL_PATH.exists():
-            m = joblib.load(MODEL_PATH)
+        m = _try_load_model()
+        if m is not None:
             n_estimators = m.n_estimators
     except Exception:
         pass

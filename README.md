@@ -58,7 +58,7 @@ Black-box AI is unsuitable for operational meteorology. AtmoTrust integrates `sh
 Instead of predicting rainfall amounts, AtmoTrust predicts when the government's primary model (GFS) will be wrong. This addresses the hardest operational challenge: knowing when to override the model guidance.
 
 ### 3. WMO-Grade Evaluation (Brier Skill Score)
-Accuracy and F1 scores are insufficient for meteorology. AtmoTrust evaluates its probability predictions using the Brier Skill Score (BSS). Our model achieves a **BSS of 0.817**, significantly outperforming naive climatological baselines.
+Accuracy and F1 scores are insufficient for meteorology. AtmoTrust evaluates its probability predictions using the Brier Skill Score (BSS). Our model achieves a **BSS of 0.786**, significantly outperforming naive climatological baselines.
 
 ### 4. 10-Day Lead Time Sweep
 The dashboard features a dynamic 10-day confidence outlook. The interface calculates and color-codes the risk for the entire 10-day horizon, allowing teams to see exactly when confidence degrades.
@@ -74,10 +74,10 @@ When bust probabilities exceed 60%, the system automatically issues color-coded,
 - **Features Analyzed:** `forecast_value` (precipitation mm), `hist_bust_rate`, `lead_day`, `month_sin`, `month_cos`, `precip_intensity_cat`, `region`, `season`
 - **Validation Strategy:** Chronological split (70% train, 15% validation, 15% test) to prevent time-series data leakage.
 - **Strict Leakage Prevention:** Verified removal of label-derived columns (`abs_error_mm`, `signed_error_mm`, `precip_observed_mm`, `bust_threshold_mm`).
-- **Test Performance (985,760 samples):**
-  - **ROC-AUC:** `0.971`
-  - **PR-AUC:** `0.948`
-  - **Brier Skill Score (BSS):** `0.817` (Climatology baseline Brier Score: 0.191)
+- **Test Performance (901,971 samples):**
+  - **ROC-AUC:** `0.952`
+  - **PR-AUC:** `0.936`
+  - **Brier Skill Score (BSS):** `0.786` (Climatology baseline Brier Score: 0.196)
 
 ---
 

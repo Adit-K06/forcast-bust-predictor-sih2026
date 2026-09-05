@@ -109,7 +109,7 @@ function ModelInfoBadge() {
           <div className="bss-hero-label">BRIER SKILL SCORE vs CLIMATOLOGICAL BASELINE</div>
           <div className="bss-hero-score-row">
             <div className="bss-hero-number">
-              <span className="bss-score-value">{(skillData.brier_skill_score ?? 0.817).toFixed(3)}</span>
+              <span className="bss-score-value">{(skillData.brier_skill_score ?? 0.786).toFixed(3)}</span>
               <span className="bss-score-max">/1.000</span>
             </div>
             <div className="bss-hero-context">
@@ -259,7 +259,7 @@ function ModelInfoBadge() {
         {info.coverage_note}
         {skillData && (
           <span style={{ display: 'block', marginTop: 8, color: 'var(--risk-low)' }}>
-            Brier Skill Score of <strong>0.817</strong> confirms the model is substantially better than
+            Brier Skill Score of <strong>0.786</strong> confirms the model is substantially better than
             naive climatological forecasting across 901,971 independent test samples.
           </span>
         )}
