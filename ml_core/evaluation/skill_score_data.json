@@ -1,0 +1,11 @@
+{
+  "n_test_rows": 901971,
+  "brier_baseline": 0.1963,
+  "brier_model": 0.042,
+  "brier_skill_score": 0.786,
+  "roc_auc_model": 0.9523,
+  "pr_auc_model": 0.936,
+  "model_prob_mean": 0.3216,
+  "true_bust_rate": 0.2574,
+  "note": "Negative BSS = model probabilities are poorly calibrated vs climatology baseline. ROC-AUC shows strong discrimination. Calibration fix: remove class_weight=balanced and/or apply isotonic regression."
+}
